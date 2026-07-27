@@ -1,0 +1,46 @@
+# ---- Python ---------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.eggs/
+
+# ---- Environments ---------------------------------------------------------
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+
+# ---- Tooling caches -------------------------------------------------------
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# ---- marimo ---------------------------------------------------------------
+__marimo__/
+.marimo.toml.lock
+
+# ---- Data (keep the tree, not the payload) --------------------------------
+data/raw/*
+data/interim/*
+data/processed/*
+data/external/*
+!data/**/.gitkeep
+outputs/*
+!outputs/.gitkeep
+
+# ---- Agent / editor local state -------------------------------------------
+.pi/sessions/
+.pi/settings.local.json
+.claude/settings.local.json
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/settings.json

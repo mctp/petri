@@ -1,0 +1,92 @@
+[project]
+name = "marimo-pi"
+version = "0.1.0"
+description = "Template for data science projects: marimo notebooks paired with the pi coding agent"
+readme = "README.md"
+authors = [{ name = "Marcin Cieslik", email = "mcieslik@med.umich.edu" }]
+requires-python = ">=3.13"
+dependencies = [
+    "marimo>=0.17",
+    "numpy>=2.2",
+    "pandas>=2.2",
+    "polars>=1.20",
+    "pyarrow>=19",
+    "duckdb>=1.1",
+    "altair>=5.5",
+]
+
+[project.optional-dependencies]
+notebook = [
+    # extras marimo uses for richer notebook UX (dataframe viewers, SQL, charts)
+    "marimo[recommended]>=0.17",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.9",
+    "pytest>=8.3",
+    "pytest-cov>=6.0",
+    "mypy>=1.14",
+    "pre-commit>=4.1",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+default-groups = ["dev"]
+
+# --------------------------------------------------------------------------- #
+# Lint / format
+# --------------------------------------------------------------------------- #
+[tool.ruff]
+line-length = 88
+target-version = "py313"
+extend-exclude = ["notebooks/**/__marimo__"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "I",    # isort
+    "UP",   # pyupgrade
+    "B",    # bugbear
+    "SIM",  # simplify
+    "PD",   # pandas-vet
+    "NPY",  # numpy
+    "RUF",
+]
+ignore = [
+    "E501",  # line length handled by the formatter
+]
+
+[tool.ruff.lint.per-file-ignores]
+# marimo notebooks are generated artifacts: cells are functions with
+# unused-looking args/returns and the module-level `app` conventions.
+"notebooks/*.py" = ["B018", "F841", "E402", "I001"]
+
+[tool.ruff.format]
+docstring-code-format = true
+
+# --------------------------------------------------------------------------- #
+# Types / tests
+# --------------------------------------------------------------------------- #
+[tool.mypy]
+python_version = "3.13"
+files = ["src", "tests"]
+strict = true
+warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+module = ["marimo.*", "duckdb.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+addopts = "-ra --strict-markers --strict-config"
+
+[tool.coverage.run]
+source = ["src"]
+branch = true
