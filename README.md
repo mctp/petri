@@ -61,6 +61,7 @@ globally with `npx skills add marimo-team/marimo-pair`.
 ```
 notebooks/         marimo notebooks (plain .py files, reviewable diffs)
 docs/              project documentation (setup notes, decisions)
+renv/              project-local R library (contents gitignored)
 vendor/            vendored git submodules (marimo-pair skill)
 .pi/skills/        skills pi loads for this project (symlinks into vendor/)
 data/raw/          immutable inputs         (gitignored)
@@ -83,12 +84,26 @@ Add or remove with `uv add <pkg>` / `uv remove <pkg>` (dev tools:
 `uv add --dev <pkg>`). During a live pairing session, let the agent use the
 skill's package API (`ctx.packages.add(...)`) so the kernel stays in sync.
 
-### R interop
+### R environment
 
-`rpy2` requires a local R installation and its behaviour depends on how that R
-was built. The template ships no rpy2-specific build settings — configure R on
-your machine, then see [docs/rpy2.md](docs/rpy2.md) for verification steps,
-API vs. ABI mode, and troubleshooting.
+R packages are managed with [renv](https://rstudio.github.io/renv/), the R
+equivalent of `.venv` + lockfile:
+
+```bash
+make r-restore              # rebuild renv/library from renv.lock
+make r-install PKG=ggplot2  # install into the project library, then snapshot
+make r-status               # library vs. lockfile
+```
+
+The library starts empty; `.Rprofile` + `renv.lock` are committed. Notebooks
+must activate it explicitly with `ro.r(f'renv::load("{PROJECT_ROOT}")')`,
+because the marimo kernel runs with its cwd in `notebooks/`. See
+[docs/renv.md](docs/renv.md).
+
+`rpy2` itself requires a local R installation and its behaviour depends on how
+that R was built. The template ships no rpy2-specific build settings —
+configure R on your machine, then see [docs/rpy2.md](docs/rpy2.md) for
+verification steps, API vs. ABI mode, and troubleshooting.
 
 ## Conventions
 

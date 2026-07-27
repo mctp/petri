@@ -1,6 +1,14 @@
 default_install_hook_types: [pre-commit]
 default_stages: [pre-commit]
 
+# Generated / vendored files: keep them byte-identical to upstream.
+exclude: |
+  (?x)^(
+    renv/activate\.R|
+    renv\.lock|
+    vendor/
+  )
+
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
