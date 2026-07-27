@@ -19,7 +19,7 @@ dependencies = [
     "seaborn>=0.13",
     "altair>=5.5",
     "plotly>=6.0",
-    # R interop (requires a local R installation)
+    # R interop (requires a local R installation; see docs/rpy2.md)
     "rpy2>=3.6",
 ]
 

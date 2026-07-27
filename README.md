@@ -35,6 +35,7 @@ Everything runs through `uv run`, so activating `.venv` is optional.
 
 ```
 notebooks/         marimo notebooks (plain .py files, reviewable diffs)
+docs/              project documentation (setup notes, decisions)
 data/raw/          immutable inputs         (gitignored)
 data/interim/      intermediate artifacts   (gitignored)
 data/processed/    analysis-ready datasets  (gitignored)
@@ -55,27 +56,12 @@ Add or remove with `uv add <pkg>` / `uv remove <pkg>` (dev tools:
 `uv add --dev <pkg>`). During a live pairing session, let the agent use the
 skill's package API (`ctx.packages.add(...)`) so the kernel stays in sync.
 
-### R interop notes
+### R interop
 
-`rpy2` needs a local R install. If the wheel was built against a different R
-than yours (common on macOS: framework R vs. Homebrew R), rpy2 prints an
-API-mode import error and silently falls back to ABI mode. Two fixes:
-
-```bash
-export RPY2_CFFI_MODE=ABI              # quiet, uses the ABI interface
-# or compile rpy2 against your local R:
-uv add rpy2 --no-binary-package rpy2
-```
-
-Useful in notebooks:
-
-```python
-import rpy2.robjects as ro
-from rpy2.robjects import pandas2ri
-
-with (ro.default_converter + pandas2ri.converter).context():
-    r_df = ro.conversion.get_conversion().py2rpy(df)
-```
+`rpy2` requires a local R installation and its behaviour depends on how that R
+was built. The template ships no rpy2-specific build settings — configure R on
+your machine, then see [docs/rpy2.md](docs/rpy2.md) for verification steps,
+API vs. ABI mode, and troubleshooting.
 
 ## Conventions
 
