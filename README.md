@@ -91,15 +91,17 @@ R packages are managed with [renv](https://rstudio.github.io/renv/), the R
 equivalent of `.venv` + lockfile:
 
 ```bash
-make r-restore              # rebuild renv/library from renv.lock
-make r-install PKG=ggplot2  # install into the project library, then snapshot
-make r-status               # library vs. lockfile
+make r-restore                       # rebuild renv/library from renv.lock
+make r-install PKG="ggplot2 ggpubr"  # install into the project library + snapshot
+make r-status                        # library vs. lockfile
 ```
 
-The library starts empty; `.Rprofile` + `renv.lock` are committed. Notebooks
-must activate it explicitly with `ro.r(f'renv::load("{PROJECT_ROOT}")')`,
-because the marimo kernel runs with its cwd in `notebooks/`. See
-[docs/renv.md](docs/renv.md).
+`.Rprofile` and `renv.lock` are committed; `renv/library/` is not. Locked R
+packages: `ggplot2`, `ggpubr` (77 with dependencies).
+
+Notebooks must activate the library explicitly — the marimo kernel runs with its
+cwd in `notebooks/`, so it never sees the root `.Rprofile`. See
+[docs/renv.md](docs/renv.md) for the activation cell.
 
 `rpy2` itself requires a local R installation and its behaviour depends on how
 that R was built. The template ships no rpy2-specific build settings —

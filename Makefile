@@ -31,13 +31,13 @@ fmt: ## Auto-fix lint issues and format
 r-restore: ## Install R packages from renv.lock into renv/library
 	Rscript -e 'renv::restore(prompt = FALSE)'
 
-r-install: ## Install an R package into the project library: make r-install PKG=ggplot2
-	@test -n "$(PKG)" || (echo 'usage: make r-install PKG=<package>'; exit 1)
+r-install: ## Install R package(s) into the project library: make r-install PKG="ggplot2 ggpubr"
+	@test -n "$(PKG)" || (echo 'usage: make r-install PKG="<package>..."'; exit 1)
 	Rscript -e 'renv::install(commandArgs(TRUE))' $(PKG)
 	$(MAKE) r-snapshot
 
-r-snapshot: ## Record everything in renv/library into renv.lock
-	Rscript -e 'renv::snapshot(packages = rownames(installed.packages(lib.loc = renv::paths$$library())), prompt = FALSE)'
+r-snapshot: ## Record the project library into renv.lock
+	Rscript -e 'renv::snapshot(prompt = FALSE)'
 
 r-status: ## Show renv project status
 	Rscript -e 'renv::status()'

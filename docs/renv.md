@@ -19,11 +19,13 @@ Ignored: `renv/library/`, `renv/sandbox/`, `renv/staging/` (renv writes its own
 ## Daily use
 
 ```bash
-make r-restore              # rebuild renv/library from renv.lock
-make r-install PKG=ggplot2  # install into the project library, then snapshot
-make r-snapshot             # record the current library into renv.lock
-make r-status               # check library vs. lockfile
+make r-restore                       # rebuild renv/library from renv.lock
+make r-install PKG="ggplot2 ggpubr"  # install into the project library + snapshot
+make r-snapshot                      # record the current library into renv.lock
+make r-status                        # check library vs. lockfile
 ```
+
+Currently locked: `ggplot2`, `ggpubr` and their dependencies (77 packages).
 
 Inside an R session started at the project root, `.Rprofile` activates renv
 automatically, so `renv::install()` / `renv::snapshot()` work directly.
@@ -36,17 +38,26 @@ inside Python strings in marimo notebooks, so nothing is discoverable that way,
 and the alternative ("explicit") mode requires maintaining a `DESCRIPTION`
 package file.
 
-Instead, snapshots record **whatever is installed in the project library** —
-the venv-like behaviour:
+Instead the project uses renv's **custom** snapshot type: the dependency list
+*is* the project library, the way `.venv` is the source of truth for Python.
+`renv/settings.json` sets `snapshot.type = "custom"` and `.Rprofile` registers
+the filter:
 
-```bash
-Rscript -e 'renv::snapshot(packages = rownames(installed.packages(lib.loc = renv::paths$library())), prompt = FALSE)'
+```r
+options(renv.snapshot.filter = function(project) {
+  rownames(installed.packages(lib.loc = renv::paths$library(project = project)))
+})
 ```
 
-That is exactly what `make r-snapshot` runs. Note that plain
-`renv::snapshot(type = "all")` is *not* equivalent: it also sweeps in the base
-and recommended packages from renv's sandbox (MASS, survival, Matrix, ...),
-which you do not want in the lockfile.
+This must be set **before** `source("renv/activate.R")`, because activate.R
+checks project sync during startup and errors out if the filter is missing.
+
+Both `renv::snapshot()` and `renv::status()` use the filter, so status reports
+a clean project instead of flagging all 77 packages as "recorded but not used".
+
+Note that `renv::snapshot(type = "all")` is *not* equivalent: it walks every
+library path, sweeping the base and recommended packages out of renv's sandbox
+(MASS, survival, Matrix, ...) into the lockfile.
 
 ## Using the project library from a notebook
 
@@ -54,20 +65,34 @@ marimo runs the kernel with its working directory set to the notebook's
 directory (`notebooks/`), not the project root — so R started by `rpy2` does
 **not** see the root `.Rprofile` and defaults to your system library.
 
-Activate the project library explicitly in a cell:
+Activate the project explicitly in a cell by sourcing the project `.Rprofile`
+with the working directory temporarily moved to the project root:
 
 ```python
 import rpy2.robjects as ro
 
-ro.r(f'renv::load("{PROJECT_ROOT}")')
+ro.r(f"""
+local({{
+  root <- "{PROJECT_ROOT}"
+  old <- setwd(root); on.exit(setwd(old), add = TRUE)
+  source(file.path(root, ".Rprofile"))
+}})
+""")
+
 list(ro.r(".libPaths()"))
 # ['/…/marimo-pi/renv/library/macos/R-4.5/aarch64-apple-darwin24.6.0',
 #  '/…/renv/sandbox/…']
 ```
 
-This gives full isolation: the project library plus renv's sandbox of base and
-recommended packages, with your system site-library excluded. It requires
-`renv` to be installed in the system library (`install.packages("renv")`).
+This gives full isolation — the project library plus renv's sandbox of base and
+recommended packages, with your system site-library excluded — and reuses the
+same `.Rprofile` any R session at the project root would run, so the snapshot
+filter is registered too.
+
+A bare `renv::load(PROJECT_ROOT)` also activates the library, but it fails with
+`snapshot of type 'custom' requested, but 'renv.snapshot.filter' is not
+registered` because it skips `.Rprofile`. The `setwd` matters: `.Rprofile`
+sources `renv/activate.R` by relative path.
 
 Alternative, if you prefer not to touch notebook code — export the library path
 before starting marimo (keeps the system site-library visible, so it isolates
