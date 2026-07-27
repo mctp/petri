@@ -1,13 +1,20 @@
 .DEFAULT_GOAL := help
-.PHONY: help setup nb lint fmt clean
+.PHONY: help setup skills skills-update nb lint fmt clean
 
 help: ## Show available targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
-		| awk -F':.*?## ' '{printf "  \033[36m%-8s\033[0m %s\n", $$1, $$2}'
+		| awk -F':.*?## ' '{printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
 
-setup: ## Create .venv from uv.lock and install git hooks
+setup: skills ## Fetch skills, create .venv from uv.lock, install git hooks
 	uv sync
 	uv run pre-commit install
+
+skills: ## Fetch/refresh the vendored marimo-pair skill (git submodule)
+	git submodule update --init --recursive
+
+skills-update: ## Update the vendored skill to upstream main
+	git submodule update --remote --merge vendor/marimo-pair
+	@git -C vendor/marimo-pair log --oneline -1
 
 nb: ## Start marimo on notebooks/ (discoverable by the marimo-pair skill)
 	uv run marimo edit notebooks/ --no-token

@@ -21,8 +21,8 @@ There is no Python package here — the deliverables are notebooks under
 ## Quickstart
 
 ```bash
-git clone <this-template> my-project && cd my-project
-make setup          # uv sync + pre-commit install
+git clone --recurse-submodules <this-template> my-project && cd my-project
+make setup          # submodules + uv sync + pre-commit install
 make nb             # start marimo on notebooks/ with --no-token
 ```
 
@@ -30,12 +30,39 @@ Then, in a second terminal, start `pi` in the project root and ask it to pair on
 the notebook. `--no-token` lets the skill auto-discover the running server.
 
 Everything runs through `uv run`, so activating `.venv` is optional.
+Run `make help` to see all targets.
+
+## The marimo-pair skill
+
+Upstream [`marimo-pair`](https://github.com/marimo-team/marimo-pair) is vendored
+as a git submodule and exposed to pi through a symlink:
+
+```
+vendor/marimo-pair/                       git submodule, pinned to a commit
+.pi/skills/marimo-pair -> ../../vendor/marimo-pair/skills/marimo-pair
+```
+
+pi discovers skills in `.pi/skills/` and resolves symlinks, so the skill loads
+with no extra configuration and the pinned version travels with the repo. If you
+cloned without `--recurse-submodules`, the symlink dangles until `make skills`.
+
+Update to the latest upstream skill:
+
+```bash
+make skills-update
+git commit -am "chore: update marimo-pair skill"
+```
+
+Prefer not to vendor it? Remove the submodule and symlink, and install the skill
+globally with `npx skills add marimo-team/marimo-pair`.
 
 ## Layout
 
 ```
 notebooks/         marimo notebooks (plain .py files, reviewable diffs)
 docs/              project documentation (setup notes, decisions)
+vendor/            vendored git submodules (marimo-pair skill)
+.pi/skills/        skills pi loads for this project (symlinks into vendor/)
 data/raw/          immutable inputs         (gitignored)
 data/interim/      intermediate artifacts   (gitignored)
 data/processed/    analysis-ready datasets  (gitignored)
