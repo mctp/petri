@@ -77,7 +77,8 @@ Declared in `pyproject.toml`, locked in `uv.lock` (both committed):
 
 - notebook: `marimo[recommended]`
 - data: `numpy`, `pandas`, `polars`, `pyarrow`, `duckdb`, `scipy`
-- plotting: `matplotlib`, `seaborn`, `altair`, `plotly`
+- plotting: `matplotlib`, `seaborn`, `plotly`
+  (`altair` is not a direct dependency, but arrives with `marimo[recommended]`)
 - R interop: `rpy2`
 
 Add or remove with `uv add <pkg>` / `uv remove <pkg>` (dev tools:
