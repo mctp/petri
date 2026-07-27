@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help setup fmt lint types test check nb clean
+.PHONY: help setup nb lint fmt clean
 
 help: ## Show available targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -9,25 +9,18 @@ setup: ## Create .venv from uv.lock and install git hooks
 	uv sync
 	uv run pre-commit install
 
+nb: ## Start marimo on notebooks/ (discoverable by the marimo-pair skill)
+	uv run marimo edit notebooks/ --no-token
+
+lint: ## Lint notebooks and verify formatting
+	uv run ruff check .
+	uv run ruff format --check .
+
 fmt: ## Auto-fix lint issues and format
 	uv run ruff check --fix .
 	uv run ruff format .
 
-lint: ## Lint and verify formatting
-	uv run ruff check .
-	uv run ruff format --check .
-
-types: ## Type-check src/ and tests/
-	uv run mypy
-
-test: ## Run the test suite
-	uv run pytest
-
-check: lint types test ## Run all checks
-
-nb: ## Start a marimo notebook server (discoverable by the marimo-pair skill)
-	uv run marimo edit notebooks/ --no-token
-
-clean: ## Remove caches and build artifacts
-	rm -rf .pytest_cache .ruff_cache .mypy_cache htmlcov .coverage build dist
+clean: ## Remove caches and marimo artifacts
+	rm -rf .ruff_cache
 	find . -name __pycache__ -type d -prune -exec rm -rf {} +
+	find notebooks -name __marimo__ -type d -prune -exec rm -rf {} +
