@@ -139,21 +139,32 @@ rpy2 uses your user/site R libraries. Install R packages with R itself:
 Rscript -e 'install.packages("ggplot2", repos="https://cloud.r-project.org")'
 ```
 
-## 5. Using rpy2 in a marimo notebook
+## 5. Using rpy2 in a marimo notebook via `r_bridge.py`
+
+This template provides `r_bridge.py` to simplify `rpy2` usage in marimo notebooks:
 
 ```python
 import polars as pl
-import rpy2.robjects as ro
-from rpy2.robjects import pandas2ri
+from r_bridge import pl_to_r, r_eval, r_set, r_to_pl
 
-# Python -> R
-_conv = ro.default_converter + pandas2ri.converter
-with _conv.context():
-    ro.globalenv["df"] = ro.conversion.get_conversion().py2rpy(df.to_pandas())
+# Python -> R (Polars to R data.frame without pandas)
+pl_to_r(df, "r_df")
 
-summary = ro.r("summary(df)")
-summary
+# Evaluate R code in the permanent R session
+r_eval("""
+suppressPackageStartupMessages(library(ggpubr))
+p <- ggboxplot(r_df, x = "group", y = "value")
+ggsave("outputs/plot.png", p)
+""")
+
+# R -> Python (R data.frame to Polars)
+summary_df = r_to_pl("summary_df")
 ```
+
+Key features of `r_bridge.py`:
+- Sets working directory to `PROJECT_ROOT` before importing `rpy2`, so `.Rprofile` and `renv/library/` load once automatically at startup.
+- Wraps all R operations in `_conv.context()` so `rpy2` conversion rules work across marimo's multi-threaded cell execution contexts.
+- Transfers data directly between Polars and R without `pandas` or `pandas2ri`.
 
 Notes for notebook use:
 

@@ -38,7 +38,8 @@ When a marimo server or kernel session is running:
 
 ## File & Artifact Paths
 
-- **Notebooks**: All notebooks live in `notebooks/` (e.g. `notebooks/template.py`).
+- **Notebooks**: Notebooks live in `notebooks/` (`blank.py`, `py_example.py`, `r_example.py`).
+- **Paths**: Use `from paths import DATA_DIR, OUTPUTS_DIR, PROJECT_ROOT` for pure Python paths (no R dependencies).
 - **Data**: Data files live in `data/` (`raw/`, `interim/`, `processed/`, `external/`).
 - **Outputs**: Plots and figures MUST be saved to `outputs/` (e.g. `OUTPUTS_DIR / "plot.png"`), never `/tmp/`. Display in marimo using `mo.image(plot_path.read_bytes(), width=600)`.
 - **Secrets**: Store local credentials in `.env` (gitignored). Document keys in `.env.example`.

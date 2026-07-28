@@ -59,8 +59,10 @@ globally with `npx skills add marimo-team/marimo-pair`.
 ## Layout
 
 ```
-notebooks/         marimo notebooks (plain .py files, reviewable diffs)
-docs/              project documentation (setup notes, decisions)
+notebooks/         marimo notebooks (blank.py, py_example.py, r_example.py)
+docs/              project documentation (architecture, renv, rpy2)
+paths.py           pure Python project directory paths helper
+r_bridge.py        embedded R session & Polars <-> R interop helper
 renv/              project-local R library (contents gitignored)
 vendor/            vendored git submodules (marimo-pair skill)
 .pi/skills/        skills pi loads for this project (symlinks into vendor/)

@@ -71,7 +71,8 @@ def _(np, pl):
 
 
 @app.cell(hide_code=True)
-def _(OUTPUTS_DIR, df, mo, pl, plt, sns, stats):
+def _(OUTPUTS_DIR, df, mo, pl, plt, sns):
+    from scipy import stats
 
     plot_path = OUTPUTS_DIR / "py_example_seaborn.png"
 
