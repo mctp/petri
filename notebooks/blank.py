@@ -28,7 +28,7 @@ def _(PROJECT_ROOT, mo):
                 ## External Resources
 
                 - **marimo**: [Documentation](https://docs.marimo.io/) | [API Reference](https://docs.marimo.io/api/) | [GitHub](https://github.com/marimo-team/marimo)
-                - **pi**: [GitHub](https://github.com/earendil-works/pi-coding-agent)
+                - **pi**: [GitHub](https://github.com/earendil-works/pi)
                 - **marimo-pair**: [GitHub](https://github.com/marimo-team/marimo-pair)
 
                 ## Project Documentation

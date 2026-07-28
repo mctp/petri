@@ -1,7 +1,7 @@
 # marimo-pi
 
 A project template for data science work done in [marimo](https://marimo.io)
-notebooks, paired with the [pi](https://github.com/earendil-works/pi-coding-agent)
+notebooks, paired with the [pi](https://github.com/earendil-works/pi)
 coding agent through the
 [`marimo-pair`](https://github.com/marimo-team/marimo-pair) skill.
 
