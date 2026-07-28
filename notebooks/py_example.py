@@ -7,24 +7,14 @@ app = marimo.App(width="medium")
 @app.cell(hide_code=True)
 def _():
     import marimo as mo
+    import matplotlib.pyplot as plt
     import numpy as np
     import polars as pl
+    import seaborn as sns
 
     from paths import DATA_DIR, OUTPUTS_DIR, PROJECT_ROOT
-    from r_bridge import pl_to_r, r_eval, r_set, r_to_pl
 
-    return (
-        DATA_DIR,
-        OUTPUTS_DIR,
-        PROJECT_ROOT,
-        mo,
-        np,
-        pl,
-        pl_to_r,
-        r_eval,
-        r_set,
-        r_to_pl,
-    )
+    return DATA_DIR, OUTPUTS_DIR, PROJECT_ROOT, mo, np, pl, plt, sns
 
 
 @app.cell(hide_code=True)
@@ -33,9 +23,9 @@ def _(PROJECT_ROOT, mo):
         [
             mo.md(
                 """
-                # R Interop Example Notebook (`rpy2` + `ggpubr`)
+                # Python Visualization Example (`matplotlib` + `seaborn`)
 
-                Demonstrates passing Polars DataFrames to R and rendering a `ggpubr` plot.
+                Demonstrates plotting a boxplot with points and t-test annotation in pure Python.
 
                 ## External Resources
 
@@ -64,7 +54,7 @@ def _(PROJECT_ROOT, mo):
 
 
 @app.cell(hide_code=True)
-def _(np, pl, pl_to_r):
+def _(np, pl):
     _rng = np.random.default_rng(42)
     _groups = ["control", "treatment"]
 
@@ -76,32 +66,48 @@ def _(np, pl, pl_to_r):
             ),
         }
     )
-
-    # Transfer Polars DataFrame to R
-    pl_to_r(df, "df")
     df
     return (df,)
 
 
 @app.cell(hide_code=True)
-def _(OUTPUTS_DIR, df, mo, r_eval, r_set):
-    _ = df  # marimo DAG dependency
-    plot_path = OUTPUTS_DIR / "r_example_ggpubr.png"
+def _(OUTPUTS_DIR, df, mo, plt, pl, sns):
+    from scipy import stats
 
-    r_set("plot_path", str(plot_path))
+    plot_path = OUTPUTS_DIR / "py_example_seaborn.png"
 
-    r_eval(
-        """
-        suppressPackageStartupMessages(library(ggpubr))
+    p_df = df.to_pandas()
 
-        p <- ggboxplot(
-          df, x = "group", y = "value",
-          color = "group", palette = "jco", add = "jitter"
-        ) + stat_compare_means(method = "t.test")
-
-        suppressMessages(ggsave(plot_path, p, width = 5, height = 4, dpi = 150))
-        """
+    fig, ax = plt.subplots(figsize=(5, 4), dpi=150)
+    sns.boxplot(
+        data=p_df,
+        x="group",
+        y="value",
+        hue="group",
+        palette="Set2",
+        ax=ax,
+        width=0.4,
     )
+    sns.stripplot(
+        data=p_df,
+        x="group",
+        y="value",
+        color="black",
+        alpha=0.6,
+        jitter=0.2,
+        ax=ax,
+    )
+
+    # Compute t-test using scipy.stats
+    ctrl = df.filter(pl.col("group") == "control")["value"].to_numpy()
+    trt = df.filter(pl.col("group") == "treatment")["value"].to_numpy()
+    ttest = stats.ttest_ind(ctrl, trt)
+
+    ax.set_title(f"t-test: p = {ttest.pvalue:.2e}")
+    sns.despine()
+    fig.tight_layout()
+    fig.savefig(plot_path)
+    plt.close(fig)
 
     mo.image(plot_path.read_bytes(), width=500)
     return (plot_path,)
