@@ -4,21 +4,28 @@ __generated_with = "0.23.15"
 app = marimo.App(width="medium")
 
 
-@app.cell(hide_code=True)
-def _():
-    import marimo as mo
+app._unparsable_cell(
+    r"""
+    impocrert marimo as mo
+    import matplotlib.pyplot as plt
     import numpy as np
     import polars as pl
 
     from r_bridge import (
+        DATA_DIR,
         OUTPUTS_DIR,
+        PROJECT_ROOT,
         pl_to_r,
         r_eval,
         r_set,
         r_to_pl,
     )
-
-    return OUTPUTS_DIR, mo, np, pl, pl_to_r, r_eval, r_set, r_to_pl
+    """,
+    column=None,
+    disabled=False,
+    hide_code=True,
+    name="_",
+)
 
 
 @app.cell(hide_code=True)
