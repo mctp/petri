@@ -28,9 +28,8 @@ def _(PROJECT_ROOT, mo):
                 ## External Resources
 
                 - **marimo**: [Documentation](https://docs.marimo.io/) | [API Reference](https://docs.marimo.io/api/) | [GitHub](https://github.com/marimo-team/marimo)
-                - **Polars**: [User Guide](https://docs.pola.rs/) | [API Reference](https://docs.pola.rs/api/python/stable/reference/index.html)
-                - **rpy2**: [Documentation](https://rpy2.github.io/doc/v3.5.x/html/index.html)
-                - **renv**: [User Guide](https://rstudio.github.io/renv/articles/renv.html)
+                - **pi**: [GitHub](https://github.com/earendil-works/pi-coding-agent)
+                - **marimo-pair**: [GitHub](https://github.com/marimo-team/marimo-pair)
 
                 ## Project Documentation
                 """
