@@ -7,10 +7,11 @@ app = marimo.App(width="medium")
 @app.cell(hide_code=True)
 def _():
     import marimo as mo
+    import polars as pl
 
-    from paths import PROJECT_ROOT
+    from paths import DATA_DIR, OUTPUTS_DIR, PROJECT_ROOT
 
-    return PROJECT_ROOT, mo
+    return DATA_DIR, OUTPUTS_DIR, PROJECT_ROOT, mo, pl
 
 
 @app.cell(hide_code=True)
