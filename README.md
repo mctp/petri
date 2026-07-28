@@ -99,9 +99,9 @@ make r-status                        # library vs. lockfile
 `.Rprofile` and `renv.lock` are committed; `renv/library/` is not. Locked R
 packages: `ggplot2`, `ggpubr` (77 with dependencies).
 
-Notebooks must activate the library explicitly — the marimo kernel runs with its
-cwd in `notebooks/`, so it never sees the root `.Rprofile`. See
-[docs/renv.md](docs/renv.md) for the activation cell.
+Notebooks import `r_bridge` (`from r_bridge import pl_to_r, r_eval, r_set, r_to_pl`),
+which sets `PROJECT_ROOT` as working directory before `rpy2` imports, automatically
+activating `.Rprofile` and `renv/library/` once. See [docs/renv.md](docs/renv.md).
 
 `rpy2` itself requires a local R installation and its behaviour depends on how
 that R was built. The template ships no rpy2-specific build settings —

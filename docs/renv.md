@@ -61,38 +61,20 @@ library path, sweeping the base and recommended packages out of renv's sandbox
 
 ## Using the project library from a notebook
 
-marimo runs the kernel with its working directory set to the notebook's
-directory (`notebooks/`), not the project root — so R started by `rpy2` does
-**not** see the root `.Rprofile` and defaults to your system library.
-
-Activate the project explicitly in a cell by sourcing the project `.Rprofile`
-with the working directory temporarily moved to the project root:
+`r_bridge.py` handles initializing R from the project root automatically when
+imported:
 
 ```python
-import rpy2.robjects as ro
-
-ro.r(f"""
-local({{
-  root <- "{PROJECT_ROOT}"
-  old <- setwd(root); on.exit(setwd(old), add = TRUE)
-  source(file.path(root, ".Rprofile"))
-}})
-""")
-
-list(ro.r(".libPaths()"))
-# ['/…/marimo-pi/renv/library/macos/R-4.5/aarch64-apple-darwin24.6.0',
-#  '/…/renv/sandbox/…']
+from r_bridge import pl_to_r, r_eval, r_set, r_to_pl
 ```
 
-This gives full isolation — the project library plus renv's sandbox of base and
-recommended packages, with your system site-library excluded — and reuses the
-same `.Rprofile` any R session at the project root would run, so the snapshot
-filter is registered too.
+When `r_bridge` is imported, it sets the working directory to `PROJECT_ROOT`
+before importing `rpy2`. R initializes in `PROJECT_ROOT`, automatically runs
+`.Rprofile`, activates `renv/library/`, and registers the custom snapshot filter
+once for the entire session.
 
-A bare `renv::load(PROJECT_ROOT)` also activates the library, but it fails with
-`snapshot of type 'custom' requested, but 'renv.snapshot.filter' is not
-registered` because it skips `.Rprofile`. The `setwd` matters: `.Rprofile`
-sources `renv/activate.R` by relative path.
+Notebook cells call `r_eval()`, `pl_to_r()`, `r_to_pl()` without any in-cell
+R environment setup or conversion boilerplate.
 
 Alternative, if you prefer not to touch notebook code — export the library path
 before starting marimo (keeps the system site-library visible, so it isolates

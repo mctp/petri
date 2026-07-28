@@ -33,7 +33,7 @@ default-groups = ["dev"]
 [tool.ruff]
 line-length = 88
 target-version = "py313"
-extend-exclude = ["**/__marimo__"]
+extend-exclude = ["**/__marimo__", "vendor/**"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "PD", "NPY", "RUF"]
