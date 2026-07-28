@@ -4,7 +4,7 @@ __generated_with = "0.23.15"
 app = marimo.App(width="medium")
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _():
     import marimo as mo
     import numpy as np
@@ -21,7 +21,7 @@ def _():
     return OUTPUTS_DIR, mo, np, pl, pl_to_r, r_eval, r_set, r_to_pl
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     mo.md("""
     # marimo-pi Analysis Template
@@ -34,7 +34,7 @@ def _(mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     mo.md("""
     ## R interop & reactive controls
@@ -42,7 +42,7 @@ def _(mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(r_eval):
     # r_bridge initializes R in PROJECT_ROOT, which automatically ran .Rprofile
     # and activated renv once.
@@ -51,7 +51,7 @@ def _(r_eval):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     n_per_group = mo.ui.slider(
         10, 200, value=40, step=10, label="n per group", show_value=True
@@ -90,7 +90,7 @@ def _(mo):
     return effect_size, n_per_group, palette_choice, show_points, test_method
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(effect_size, n_per_group, np, pl, pl_to_r):
     _rng = np.random.default_rng(0)
     _groups = ["control", "treated", "rescue"]
@@ -110,7 +110,7 @@ def _(effect_size, n_per_group, np, pl, pl_to_r):
     return (sample_df,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(r_eval, r_to_pl, sample_df):
     _ = sample_df  # marimo DAG dependency
     r_eval("group_means <- aggregate(value ~ group, sample_df, mean)")
@@ -119,7 +119,7 @@ def _(r_eval, r_to_pl, sample_df):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(
     OUTPUTS_DIR,
     mo,
