@@ -1,24 +1,16 @@
 """r_bridge.py — Clean Python bridge to the permanent embedded R session.
 
-- Initializes R with working directory = project root, so R automatically reads
-  .Rprofile and activates the renv project library once at startup.
-- Keeps the embedded R session permanent across all Python calls.
-- Wraps conversions in rpy2's default_converter context so marimo cells run
-  without thread/contextvar conversion errors.
-- Provides Polars <-> R data transfer functions without pandas roundtrips.
+Initializes R with working directory = project root, so R automatically reads
+.Rprofile and activates the renv project library once at startup.
 """
 
 import os
-import sys
 from pathlib import Path
 from typing import Any
 
-# Ensure project root is cwd and in sys.path BEFORE importing rpy2.
-# When rpy2 initializes R, R uses getwd() and automatically runs .Rprofile,
-# activating renv/library and setting the custom snapshot filter once.
 PROJECT_ROOT = Path(__file__).resolve().parent
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
+DATA_DIR = PROJECT_ROOT / "data"
+OUTPUTS_DIR = PROJECT_ROOT / "outputs"
 
 os.chdir(PROJECT_ROOT)
 os.environ.setdefault("RPY2_CFFI_MODE", "ABI")

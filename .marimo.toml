@@ -1,0 +1,3 @@
+[runtime]
+pythonpath = ["."]
+dotenv = [".env"]

@@ -6,32 +6,19 @@ app = marimo.App(width="medium")
 
 @app.cell
 def _():
-    import pathlib
-    import sys
-
     import marimo as mo
     import numpy as np
     import polars as pl
 
-    _root = (
-        pathlib.Path(__file__).resolve().parents[1]
-        if "__file__" in locals()
-        else pathlib.Path().resolve()
+    from r_bridge import (
+        OUTPUTS_DIR,
+        pl_to_r,
+        r_eval,
+        r_set,
+        r_to_pl,
     )
-    PROJECT_ROOT = _root if (_root / "pyproject.toml").exists() else _root.parent
-    if str(PROJECT_ROOT) not in sys.path:
-        sys.path.insert(0, str(PROJECT_ROOT))
 
-    from r_bridge import pl_to_r, r_eval, r_set, r_to_pl
-
-    return PROJECT_ROOT, mo, np, pl, pl_to_r, r_eval, r_set, r_to_pl
-
-
-@app.cell
-def _(PROJECT_ROOT):
-    DATA_DIR = PROJECT_ROOT / "data"
-    OUTPUTS_DIR = PROJECT_ROOT / "outputs"
-    return (OUTPUTS_DIR,)
+    return OUTPUTS_DIR, mo, np, pl, pl_to_r, r_eval, r_set, r_to_pl
 
 
 @app.cell
