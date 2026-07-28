@@ -12,9 +12,9 @@ def _():
     import polars as pl
     import seaborn as sns
 
-    from paths import DATA_DIR, OUTPUTS_DIR, PROJECT_ROOT
+    from paths import OUTPUTS_DIR, PROJECT_ROOT
 
-    return DATA_DIR, OUTPUTS_DIR, PROJECT_ROOT, mo, np, pl, plt, sns
+    return OUTPUTS_DIR, PROJECT_ROOT, mo, np, pl, plt, sns
 
 
 @app.cell(hide_code=True)
@@ -71,8 +71,7 @@ def _(np, pl):
 
 
 @app.cell(hide_code=True)
-def _(OUTPUTS_DIR, df, mo, plt, pl, sns):
-    from scipy import stats
+def _(OUTPUTS_DIR, df, mo, pl, plt, sns, stats):
 
     plot_path = OUTPUTS_DIR / "py_example_seaborn.png"
 
@@ -110,7 +109,7 @@ def _(OUTPUTS_DIR, df, mo, plt, pl, sns):
     plt.close(fig)
 
     mo.image(plot_path.read_bytes(), width=500)
-    return (plot_path,)
+    return
 
 
 if __name__ == "__main__":
