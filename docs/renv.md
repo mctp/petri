@@ -25,7 +25,7 @@ make r-snapshot                      # record the current library into renv.lock
 make r-status                        # check library vs. lockfile
 ```
 
-Currently locked: `ggplot2`, `ggpubr` and their dependencies (77 packages).
+Currently locked: `ggplot2`, `ggpubr`, `limma`, `BiocManager`, and their dependencies (81 packages).
 
 Inside an R session started at the project root, `.Rprofile` activates renv
 automatically, so `renv::install()` / `renv::snapshot()` work directly.
@@ -94,9 +94,14 @@ embedded R session. Use `renv::load("<project root>")` instead.
 
 ## Installing R packages
 
+`BiocManager` is included in `renv.lock` and available by default in the project library, enabling seamless installation of both CRAN and Bioconductor packages.
+
 ```bash
-make r-install PKG=ggplot2                 # single package + snapshot
+make r-install PKG=ggplot2                 # CRAN package + snapshot
+make r-install PKG="bioc::DESeq2"          # Bioconductor package + snapshot
 Rscript -e 'renv::install(c("dplyr", "arrow"))' && make r-snapshot
+Rscript -e 'renv::install("bioc::limma")'      # Bioconductor via renv
+Rscript -e 'BiocManager::install("DESeq2")' && make r-snapshot # Direct BiocManager call
 Rscript -e 'renv::install("tidyverse/dplyr")'   # GitHub
 ```
 

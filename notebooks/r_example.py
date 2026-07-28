@@ -10,21 +10,10 @@ def _():
     import numpy as np
     import polars as pl
 
-    from paths import DATA_DIR, OUTPUTS_DIR, PROJECT_ROOT
-    from r_bridge import pl_to_r, r_eval, r_set, r_to_pl
+    from paths import OUTPUTS_DIR, PROJECT_ROOT
+    from r_bridge import pl_to_r, r_eval, r_set
 
-    return (
-        DATA_DIR,
-        OUTPUTS_DIR,
-        PROJECT_ROOT,
-        mo,
-        np,
-        pl,
-        pl_to_r,
-        r_eval,
-        r_set,
-        r_to_pl,
-    )
+    return OUTPUTS_DIR, PROJECT_ROOT, mo, np, pl, pl_to_r, r_eval, r_set
 
 
 @app.cell(hide_code=True)
@@ -90,6 +79,7 @@ def _(OUTPUTS_DIR, df, mo, r_eval, r_set):
 
     r_set("plot_path", str(plot_path))
 
+    # Method 1: Persistent File (Disk Output)
     r_eval(
         """
         suppressPackageStartupMessages(library(ggpubr))
@@ -102,9 +92,82 @@ def _(OUTPUTS_DIR, df, mo, r_eval, r_set):
         suppressMessages(ggsave(plot_path, p, width = 5, height = 4, dpi = 150))
         """
     )
+    v1 = mo.image(plot_path.read_bytes(), width=500)
 
-    mo.image(plot_path.read_bytes(), width=500)
-    return (plot_path,)
+    # Method 2: In-Memory Raw PNG Bytes via R png() device
+    png_raw = r_eval(
+        """
+        tf <- tempfile(fileext = ".png")
+        png(tf, width = 5, height = 4, units = "in", res = 150)
+        print(p)
+        dev.off()
+        bin <- readBin(tf, "raw", file.info(tf)$size)
+        unlink(tf)
+        bin
+        """
+    )
+    v2 = mo.image(bytes(png_raw), width=500)
+
+    # Method 3: In-Memory Vector SVG via svglite
+    svg_str = r_eval(
+        """
+        library(svglite)
+        s <- svgstring(width = 5, height = 4)
+        print(p)
+        dev.off()
+        s()
+        """
+    )
+    v3 = mo.Html(str(svg_str[0]))
+
+    # Method 4: Direct rpy2 Graphics Capture via grdevices
+    from rpy2.robjects.lib import grdevices
+
+    with grdevices.render_to_bytesio(grdevices.png, width=500, height=400) as bio:
+        r_eval("print(p)")
+    v4 = mo.image(bio.getvalue(), width=500)
+
+    mo.ui.tabs(
+        {
+            "1. Persistent File (Disk)": mo.vstack(
+                [
+                    mo.md(
+                        "**Method 1: Save to disk via `ggsave` and load with `mo.image`**\n\n"
+                        "Durable figure artifact saved in `outputs/r_example_ggpubr.png`."
+                    ),
+                    v1,
+                ]
+            ),
+            "2. In-Memory Raw PNG": mo.vstack(
+                [
+                    mo.md(
+                        "**Method 2: Render to in-memory PNG raw bytes in R**\n\n"
+                        "Captures binary PNG data directly from R memory without persisting to disk."
+                    ),
+                    v2,
+                ]
+            ),
+            "3. In-Memory Vector SVG": mo.vstack(
+                [
+                    mo.md(
+                        "**Method 3: Render to vector SVG string via `svglite`**\n\n"
+                        "Generates scalable vector SVG directly for web rendering with `mo.Html`."
+                    ),
+                    v3,
+                ]
+            ),
+            "4. rpy2 grdevices Capture": mo.vstack(
+                [
+                    mo.md(
+                        "**Method 4: Direct in-memory capture via `rpy2.robjects.lib.grdevices`**\n\n"
+                        "Uses Python context manager (`render_to_bytesio`) to capture R plot output."
+                    ),
+                    v4,
+                ]
+            ),
+        }
+    )
+    return
 
 
 if __name__ == "__main__":

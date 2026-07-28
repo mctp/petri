@@ -31,8 +31,8 @@ fmt: ## Auto-fix lint issues and format
 r-restore: ## Install R packages from renv.lock into renv/library
 	Rscript -e 'renv::restore(prompt = FALSE)'
 
-r-install: ## Install R package(s) into the project library: make r-install PKG="ggplot2 ggpubr"
-	@test -n "$(PKG)" || (echo 'usage: make r-install PKG="<package>..."'; exit 1)
+r-install: ## Install R package(s) into the project library: make r-install PKG="ggplot2 bioc::DESeq2"
+	@test -n "$(PKG)" || (echo 'usage: make r-install PKG="<package>..." (e.g. PKG="ggplot2" or PKG="bioc::DESeq2")'; exit 1)
 	Rscript -e 'renv::install(commandArgs(TRUE))' $(PKG)
 	$(MAKE) r-snapshot
 

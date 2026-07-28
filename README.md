@@ -93,13 +93,13 @@ R packages are managed with [renv](https://rstudio.github.io/renv/), the R
 equivalent of `.venv` + lockfile:
 
 ```bash
-make r-restore                       # rebuild renv/library from renv.lock
-make r-install PKG="ggplot2 ggpubr"  # install into the project library + snapshot
-make r-status                        # library vs. lockfile
+make r-restore                             # rebuild renv/library from renv.lock
+make r-install PKG="ggplot2 bioc::DESeq2"  # CRAN or Bioconductor packages + snapshot
+make r-status                              # library vs. lockfile
 ```
 
 `.Rprofile` and `renv.lock` are committed; `renv/library/` is not. Locked R
-packages: `ggplot2`, `ggpubr` (77 with dependencies).
+packages: `ggplot2`, `ggpubr`, `limma`, `BiocManager` (81 with dependencies).
 
 Notebooks import `r_bridge` (`from r_bridge import pl_to_r, r_eval, r_set, r_to_pl`),
 which sets `PROJECT_ROOT` as working directory before `rpy2` imports, automatically

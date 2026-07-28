@@ -30,7 +30,7 @@ When a marimo server or kernel session is running:
   - Outside a live session: `uv add <pkg>` or `uv add --dev <pkg>`.
   - Inside a live session: use `ctx.packages.add("<pkg>")` via `cm`.
 - **R**:
-  - `make r-install PKG="pkgname"` (installs into `renv/library` and updates `renv.lock`).
+  - `make r-install PKG="pkgname"` or `make r-install PKG="bioc::pkgname"` (installs CRAN or Bioconductor packages into `renv/library` and updates `renv.lock`; `BiocManager` is included in `renv.lock`).
   - `make r-restore` (restores `renv/library` from `renv.lock`).
   - `make r-status` (verifies library vs. lockfile).
 
