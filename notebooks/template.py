@@ -4,48 +4,53 @@ __generated_with = "0.23.15"
 app = marimo.App(width="medium")
 
 
-app._unparsable_cell(
-    r"""
-    impocrert marimo as mo
+@app.cell(hide_code=True)
+def _():
+    import marimo as mo
     import matplotlib.pyplot as plt
     import numpy as np
     import polars as pl
 
-    from r_bridge import (
+    from paths import DATA_DIR, OUTPUTS_DIR, PROJECT_ROOT
+    from r_bridge import pl_to_r, r_eval, r_set, r_to_pl
+
+    return (
         DATA_DIR,
         OUTPUTS_DIR,
         PROJECT_ROOT,
+        mo,
+        np,
+        pl,
         pl_to_r,
+        plt,
         r_eval,
         r_set,
         r_to_pl,
     )
-    """,
-    column=None,
-    disabled=False,
-    hide_code=True,
-    name="_",
-)
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md("""
-    # marimo-pi Analysis Template
+    mo.md(
+        """
+        # marimo-pi Analysis Template
 
-    A reactive Python notebook paired with an embedded R session via `r_bridge`.
-    - Python data manipulation via **Polars**
-    - Project-local R library managed via **renv** (`ggplot2`, `ggpubr`)
-    - Full reactivity between Python marimo UI elements and R plots
-    """)
+        A reactive Python notebook paired with an embedded R session via `r_bridge`.
+        - Python data manipulation via **Polars**
+        - Project-local R library managed via **renv** (`ggplot2`, `ggpubr`)
+        - Full reactivity between Python marimo UI elements and R plots
+        """
+    )
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md("""
-    ## R interop & reactive controls
-    """)
+    mo.md(
+        """
+        ## R interop & reactive controls
+        """
+    )
     return
 
 
@@ -55,7 +60,7 @@ def _(r_eval):
     # and activated renv once.
     r_library = str(r_eval(".libPaths()")[0])
     r_library
-    return
+    return (r_library,)
 
 
 @app.cell(hide_code=True)
@@ -123,7 +128,7 @@ def _(r_eval, r_to_pl, sample_df):
     r_eval("group_means <- aggregate(value ~ group, sample_df, mean)")
     group_means = r_to_pl("group_means")
     group_means
-    return
+    return (group_means,)
 
 
 @app.cell(hide_code=True)
@@ -159,7 +164,7 @@ def _(
     )
 
     mo.image(plot_path.read_bytes(), width=600)
-    return
+    return (plot_path,)
 
 
 if __name__ == "__main__":

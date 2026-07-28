@@ -8,9 +8,7 @@ app = marimo.App(width="medium")
 def _():
     import marimo as mo
 
-    from r_bridge import (
-        PROJECT_ROOT,
-    )
+    from paths import PROJECT_ROOT
 
     return PROJECT_ROOT, mo
 

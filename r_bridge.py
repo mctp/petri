@@ -5,12 +5,9 @@ Initializes R with working directory = project root, so R automatically reads
 """
 
 import os
-from pathlib import Path
 from typing import Any
 
-PROJECT_ROOT = Path(__file__).resolve().parent
-DATA_DIR = PROJECT_ROOT / "data"
-OUTPUTS_DIR = PROJECT_ROOT / "outputs"
+from paths import DATA_DIR, OUTPUTS_DIR, PROJECT_ROOT
 
 os.chdir(PROJECT_ROOT)
 os.environ.setdefault("RPY2_CFFI_MODE", "ABI")
@@ -60,3 +57,14 @@ def r_to_pl(r_var_name: str) -> pl.DataFrame:
         return pl.DataFrame(
             {col: list(vec) for col, vec in zip(r_obj.names, r_obj, strict=False)}
         )
+
+
+__all__ = [
+    "DATA_DIR",
+    "OUTPUTS_DIR",
+    "PROJECT_ROOT",
+    "pl_to_r",
+    "r_eval",
+    "r_set",
+    "r_to_pl",
+]
