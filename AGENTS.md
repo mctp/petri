@@ -24,6 +24,12 @@ When a marimo server or kernel session is running:
 
 ---
 
+## Analysis Workflows
+
+- **Analyst Skill**: When analyzing data, running statistics, or making plots, use the `analyst` skill (`.pi/skills/analyst/SKILL.md` or `/skill:analyst`) to agree on inputs, approach, and outputs before executing code.
+
+---
+
 ## Package & Dependency Management
 
 - **Python**:
