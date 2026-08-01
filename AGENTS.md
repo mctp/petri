@@ -14,6 +14,24 @@ When marimo is running:
 
 ---
 
+## Opening a Notebook for Pairing
+
+1. **Start the server** (if not running): `make nb` runs `marimo edit notebooks/ --no-token`.
+2. **Open the notebook** in the browser. The server root is `notebooks/`, so file
+   URLs are relative to that directory — **omit the `notebooks/` prefix**:
+   `open "http://localhost:2718/?file=<name>.py"` (e.g. `?file=coding_patterns.py`,
+   NOT `?file=notebooks/coding_patterns.py`).
+3. **Find the session id** (one per open notebook):
+   `curl -s http://localhost:2718/api/sessions | jq -r 'to_entries[] | "\(.key)  \(.value.filename)"'`.
+4. **Connect / run code** against that kernel, passing the session id (not the filename):
+   ```bash
+   bash .pi/skills/marimo-pair/scripts/execute-code.sh --url http://localhost:2718 --session <id> -c "print('connected')"
+   ```
+
+If a single notebook is open you can omit `--session`; the script auto-selects it.
+
+---
+
 ## Prevent and Fix Process Hangs
 
 ### Rules
