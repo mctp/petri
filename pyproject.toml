@@ -1,5 +1,5 @@
 [project]
-name = "marimo-pi"
+name = "petri"
 version = "0.1.0"
 description = "Template for data science projects: marimo notebooks paired with the pi coding agent"
 readme = "README.md"

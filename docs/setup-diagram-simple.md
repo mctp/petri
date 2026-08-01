@@ -1,4 +1,4 @@
-# marimo-pi Setup (Simplified)
+# Petri Setup (Simplified)
 
 ```
           ┌─────────────────────────────────────────────┐

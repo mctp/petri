@@ -1,6 +1,6 @@
 # Architecture & Design Decisions
 
-This document describes the design decisions behind the `marimo-pi` project template.
+This document describes the design decisions behind the `petri` project template.
 
 ---
 

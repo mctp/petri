@@ -22,7 +22,7 @@ def _(PROJECT_ROOT, mo):
                 """
                 # Blank Analysis Notebook
 
-                Starter template for data science work in `marimo-pi`.
+                Starter template for data science work in `petri`.
 
                 ## External Resources
 

@@ -16,7 +16,7 @@ That means:
 
 Vendoring the files instead:
 
-- Keeps your edits as **ordinary versioned files** in `marimo-pi` — no push
+- Keeps your edits as **ordinary versioned files** in `petri` — no push
   rights, nothing dangles, and the template is self-contained for anyone who
   clones it.
 - The only cost is that you must **manually refresh** the copy when you want

@@ -1,4 +1,4 @@
-# marimo-pi
+# Petri
 
 A project template for data science work done in [marimo](https://marimo.io)
 notebooks, paired with the [pi](https://github.com/earendil-works/pi)
