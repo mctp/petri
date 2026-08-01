@@ -21,8 +21,8 @@ There is no Python package here — the deliverables are notebooks under
 ## Quickstart
 
 ```bash
-git clone --recurse-submodules <this-template> my-project && cd my-project
-make setup          # submodules + uv sync + pre-commit install
+git clone <this-template> my-project && cd my-project
+make setup          # uv sync + pre-commit install
 make nb             # start marimo on notebooks/ with --no-token
 ```
 
@@ -35,37 +35,44 @@ Run `make help` to see all targets.
 ## The marimo-pair skill
 
 Upstream [`marimo-pair`](https://github.com/marimo-team/marimo-pair) is vendored
-as a git submodule and exposed to pi through a symlink:
+directly into the repo (not a submodule) so it ships self-contained and your
+local customizations travel with the repo:
 
 ```
-vendor/marimo-pair/                       git submodule, pinned to a commit
-.pi/skills/marimo-pair -> ../../vendor/marimo-pair/skills/marimo-pair
+.pi/skills/marimo-pair/                   vendored copy of the skill
 ```
 
-pi discovers skills in `.pi/skills/` and resolves symlinks, so the skill loads
-with no extra configuration and the pinned version travels with the repo. If you
-cloned without `--recurse-submodules`, the symlink dangles until `make skills`.
+pi discovers skills in `.pi/skills/`, so the skill loads with no extra
+configuration. Because it's a plain tracked directory (not a submodule), any
+edits you make to `SKILL.md` or the reference files are ordinary versioned
+changes — no push rights to the upstream repo are needed, and nothing dangles on
+a fresh clone.
 
-Update to the latest upstream skill:
+> **Why not a submodule?** A parent repo only records a submodule's commit SHA,
+> never local edits. Vendoring the files instead keeps your customizations in
+> version control and makes the template self-contained.
+
+Update to the latest upstream skill (replaces the copy, then you review):
 
 ```bash
 make skills-update
+# review the diff, then:
+git add .pi/skills/marimo-pair
 git commit -am "chore: update marimo-pair skill"
 ```
 
-Prefer not to vendor it? Remove the submodule and symlink, and install the skill
-globally with `npx skills add marimo-team/marimo-pair`.
+See [docs/skill-vendoring.md](docs/skill-vendoring.md) for details on how the
+copy is kept in sync with upstream.
 
 ## Layout
 
 ```
-notebooks/         marimo notebooks (blank.py, py_example.py, r_example.py)
+notebooks/         marimo notebooks (blank.py, coding_patterns.py, py_example.py, r_example.py)
 docs/              project documentation (architecture, renv, rpy2)
 paths.py           pure Python project directory paths helper
 r_bridge.py        embedded R session & Polars <-> R interop helper
 renv/              project-local R library (contents gitignored)
-vendor/            vendored git submodules (marimo-pair skill)
-.pi/skills/        skills pi loads for this project (symlinks into vendor/)
+.pi/skills/        skills pi loads for this project (marimo-pair is vendored here)
 data/raw/          immutable inputs         (gitignored)
 data/interim/      intermediate artifacts   (gitignored)
 data/processed/    analysis-ready datasets  (gitignored)

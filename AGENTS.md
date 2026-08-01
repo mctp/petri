@@ -1,54 +1,65 @@
 # AGENTS.md — Instructions for AI Coding Agents
 
-This repository is a project template that pairs **marimo reactive notebooks**
-with the **pi** coding agent via the `marimo-pair` skill. It combines Python
-(`uv`, Polars) and R (`renv`, `ggplot2`/`ggpubr`) in a reactive data science environment.
+This project pairs **marimo notebooks** with the **pi agent** via `marimo-pair`. It uses Python (`uv`, Polars) and R (`renv`, `ggplot2`).
 
 ---
 
-## ⚠️ Critical Rule #1: Live Kernel is Source of Truth
+## ⚠️ Critical Rule: Live Kernel is Source of Truth
 
-When a marimo server or kernel session is running:
-- **DO NOT** edit notebook files (`notebooks/*.py`) directly on disk using file tools (`edit`, `write`). The live kernel holds cell state in memory and will overwrite disk on save.
-- **DO** execute Python code in the kernel using `bash .pi/skills/marimo-pair/scripts/execute-code.sh`.
-- **DO** use `marimo._code_mode` (`cm`) inside the scratchpad to create, edit, re-order, or delete notebook cells.
+When marimo is running:
+- **Do not edit** `notebooks/*.py` files on disk. The kernel overwrites disk files on save.
+- **Run code** using `bash .pi/skills/marimo-pair/scripts/execute-code.sh`.
+- **Edit cells** using `marimo._code_mode` (`cm`) in the scratchpad.
+- **Hide code by default**: When creating cells via `cm` (`marimo._code_mode`), always pass `hide_code=True` (e.g. `ctx.create_cell(code, hide_code=True)`) so the code editor remains collapsed in the UI unless requested otherwise.
 
 ---
 
-## R Interop Conventions (`r_bridge`)
+## Prevent and Fix Process Hangs
 
-- **Import `r_bridge`**: Notebook cells must use `from r_bridge import pl_to_r, r_eval, r_set, r_to_pl`.
-- **No `pandas`**: Use Polars for Python dataframes. Data transfers to/from R use `pl_to_r` and `r_to_pl` without `pandas` or `pandas2ri`.
-- **No in-cell `renv` activation**: Do NOT call `source("renv/activate.R")` or `renv::load()` in notebook cells. `r_bridge` initializes R in `PROJECT_ROOT`, which activates `renv` automatically once at import time.
-- **marimo DAG vs R `.GlobalEnv`**: R's global environment is invisible to marimo's dataflow graph. To ensure marimo re-runs an R-dependent cell when Python data changes, reference the Python Polars DataFrame in the cell signature (e.g. `_ = sample_df`).
+### Rules
+1. **Set tool timeout**: Pass `timeout: 30` when calling `execute-code.sh`.
+2. **Do not block the kernel**: Do not run `input()`, infinite loops, or interactive prompts.
+
+### Recovery Procedure
+If `execute-code.sh` hangs or times out:
+1. Stop stuck processes: `pkill -9 -f "marimo edit"`
+2. Remove old state files: `rm -f ~/.local/state/marimo/servers/*.json`
+3. Restart marimo server: `nohup make nb > marimo.log 2>&1 &`
+4. Ask user to open [http://localhost:2718](http://localhost:2718) in the browser.
+
+---
+
+## R Interop (`r_bridge`)
+
+- **Import**: `from r_bridge import pl_to_r, r_eval, r_set, r_to_pl`.
+- **Dataframes**: Use Polars only. Do not use `pandas`.
+- **renv**: Do not call `renv::load()` or `activate.R` in cells. `r_bridge` activates `renv` automatically.
+- **DAG trigger**: Reference Polars DataFrames in cell signatures to trigger marimo updates.
 
 ---
 
 ## Analysis Workflows
 
-- **Analyst Skill**: When analyzing data, running statistics, or making plots, use the `analyst` skill (`.pi/skills/analyst/SKILL.md` or `/skill:analyst`) to agree on inputs, approach, and outputs before executing code.
+- **Analyst Skill**: Use the `analyst` skill (`.pi/skills/analyst/SKILL.md`) to agree on inputs and methods before running code.
+- **Notebook Presentation**: During Phase 2 (Incremental Execution), always present data, plots, summary tables, and statistics directly inside live marimo notebook cells (via `cm`, with `hide_code=True` by default) so the user can interactively review them in the marimo UI. Do not rely solely on text or scratchpad outputs in chat.
 
 ---
 
-## Package & Dependency Management
+## Dependency Management
 
-- **Python**:
-  - Outside a live session: `uv add <pkg>` or `uv add --dev <pkg>`.
-  - Inside a live session: use `ctx.packages.add("<pkg>")` via `cm`.
-- **R**:
-  - `make r-install PKG="pkgname"` or `make r-install PKG="bioc::pkgname"` (installs CRAN or Bioconductor packages into `renv/library` and updates `renv.lock`; `BiocManager` is included in `renv.lock`).
-  - `make r-restore` (restores `renv/library` from `renv.lock`).
-  - `make r-status` (verifies library vs. lockfile).
+- **Python**: Run `uv add <pkg>` on host, or `ctx.packages.add("<pkg>")` in live session via `cm`.
+- **R**: Run `make r-install PKG="pkgname"` or `make r-install PKG="bioc::pkgname"`.
+- **Restore R**: Run `make r-restore`.
 
 ---
 
-## File & Artifact Paths
+## File Paths & Outputs
 
-- **Notebooks**: Notebooks live in `notebooks/` (`blank.py`, `py_example.py`, `r_example.py`).
-- **Paths**: Use `from paths import DATA_DIR, OUTPUTS_DIR, PROJECT_ROOT` for pure Python paths (no R dependencies).
-- **Data**: Data files live in `data/` (`raw/`, `interim/`, `processed/`, `external/`).
-- **Outputs**: Plots and figures MUST be saved to `outputs/` (e.g. `OUTPUTS_DIR / "plot.png"`), never `/tmp/`. Display in marimo using `mo.image(plot_path.read_bytes(), width=600)`.
-- **Secrets**: Store local credentials in `.env` (gitignored). Document keys in `.env.example`.
+- **Notebooks**: `notebooks/`
+- **Paths**: Import from `paths`: `DATA_DIR`, `OUTPUTS_DIR`, `PROJECT_ROOT`.
+- **Data**: Store in `data/` (`raw/`, `interim/`, `processed/`, `external/`).
+- **Outputs**: Save plots to `OUTPUTS_DIR / "name.png"`. Display with `mo.image(path.read_bytes(), width=600)`.
+- **Secrets**: Store credentials in `.env`.
 
 ---
 
@@ -56,9 +67,9 @@ When a marimo server or kernel session is running:
 
 | Command | Purpose |
 |---|---|
-| `make setup` | Install Python (`uv sync`), R packages (`renv::restore`), git hooks |
-| `make nb` | Start marimo server editing `notebooks/` (`--no-token`) |
-| `make lint` | Run `ruff check .` and `ruff format --check .` |
-| `make fmt` | Run `ruff check --fix .` and `ruff format .` |
-| `make r-install PKG="..."` | Install R package(s) and update `renv.lock` |
-| `make r-status` | Verify R library against `renv.lock` |
+| `make setup` | Install Python dependencies, R packages, git hooks |
+| `make nb` | Start marimo server (`--no-token`) |
+| `make lint` | Run code quality checks |
+| `make fmt` | Auto-format Python code |
+| `make r-install PKG="..."` | Install R packages and update `renv.lock` |
+| `make r-status` | Check R library status |

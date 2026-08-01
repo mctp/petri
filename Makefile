@@ -1,21 +1,24 @@
 .DEFAULT_GOAL := help
-.PHONY: help setup skills skills-update nb lint fmt clean r-restore r-snapshot r-status r-install
+.PHONY: help setup skills-update nb lint fmt clean r-restore r-snapshot r-status r-install
 
 help: ## Show available targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
 		| awk -F':.*?## ' '{printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
 
-setup: skills ## Fetch skills, create .venv and R library, install git hooks
+setup: ## Create .venv and R library, install git hooks
 	uv sync
 	uv run pre-commit install
 	$(MAKE) r-restore
 
-skills: ## Fetch/refresh the vendored marimo-pair skill (git submodule)
-	git submodule update --init --recursive
-
-skills-update: ## Update the vendored skill to upstream main
-	git submodule update --remote --merge vendor/marimo-pair
-	@git -C vendor/marimo-pair log --oneline -1
+skills-update: ## Pull latest upstream marimo-pair skill into .pi/skills (review before committing)
+	@set -e; tmp=$$(mktemp -d); \
+		git clone --quiet --depth 1 https://github.com/marimo-team/marimo-pair.git "$$tmp/marimo-pair"; \
+		rm -rf .pi/skills/marimo-pair; \
+		cp -R "$$tmp/marimo-pair/skills/marimo-pair" .pi/skills/marimo-pair; \
+		rm -rf "$$tmp"; \
+		git status --short .pi/skills/marimo-pair; \
+		echo; echo "Synced from upstream. Review, then:"; \
+		echo "  git add .pi/skills/marimo-pair && git commit"
 
 nb: ## Start marimo on notebooks/ (discoverable by the marimo-pair skill)
 	uv run marimo edit notebooks/ --no-token

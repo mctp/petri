@@ -39,7 +39,7 @@ Follow these rules to analyze data, generate plots, and work with the user.
    - Inspect generated files and plots to verify correctness.
 
 2. **Present Results**:
-   - Show the primary output (e.g., initial summary table and main plot) to the user.
+   - Present primary outputs (e.g., summary tables, plots, key statistics) directly as live cells/visualizations in the user's active notebook workspace.
    - **DO NOT** execute unrequested follow-up analyses or secondary plots in the same turn.
 
 ---
