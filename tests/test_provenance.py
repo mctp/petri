@@ -1,4 +1,4 @@
-"""Contract tests for petri.artifacts.
+"""Contract tests for petri.provenance.
 
 These pin the decisions that documentation asserts, so a future edit that
 contradicts `docs/architecture.md` or `AGENTS.md` fails here rather than drifting
@@ -19,7 +19,7 @@ import polars as pl
 import pytest
 
 import petri
-from petri import artifacts as A
+from petri import provenance as A
 from petri.paths import PROJECT_ROOT
 
 # --- the CSV standard --------------------------------------------------------
@@ -138,8 +138,8 @@ def test_absences_are_load_bearing(name):
     assert not hasattr(petri, name)
 
 
-def test_artifact_path_exists_for_looking():
-    assert "artifact_path" in petri.__all__
+def test_preserved_path_exists_for_looking():
+    assert "preserved_path" in petri.__all__
 
 
 # --- required arguments encode design decisions ------------------------------
@@ -235,7 +235,7 @@ def test_manifest_version_is_read_not_just_written(tmp_path):
 def test_output_entry_does_not_assume_index_zero():
     manifest = {
         "outputs": [
-            {"filename": "source-data.csv", "sha256": "aaa"},
+            {"filename": "figure-source.csv", "sha256": "aaa"},
             {"filename": "table.csv", "sha256": "bbb"},
         ]
     }
@@ -265,3 +265,17 @@ def test_str_src_is_content_not_a_path():
 def test_missing_file_src_is_rejected_before_any_write():
     with pytest.raises(A.ArtifactError, match="does not exist"):
         A.preserve_file(PROJECT_ROOT / "no-such-file.bin", "n")
+
+
+def test_shared_path_takes_a_suffix():
+    """save_shared writes CSV today; other formats need the suffix passed."""
+    assert A.shared_path("x").name == "x.csv"
+    assert A.shared_path("x", ".parquet").name == "x.parquet"
+    assert A.shared_path("x", "parquet").name == "x.parquet"
+
+
+def test_list_shared_reads_the_recorded_filename():
+    """Rebuilding the path would assume .csv forever."""
+    for entry in A.list_shared():
+        assert entry["path"], entry
+        assert entry["path"].startswith("shared/")

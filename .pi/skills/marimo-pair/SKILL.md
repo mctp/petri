@@ -12,7 +12,7 @@ marimo is a reactive Python runtime for building reproducible Python programs
 (marimo notebooks). Cells are connected by the variables they define and
 reference. Running a cell re-executes dependents in dataflow order. The active
 runtime holds the kernel namespace, cell state, and dataflow graph. The
-notebook (`.py` file) is the artifact the kernel writes from that state while a
+notebook (`.py` file) is what the kernel writes from that state while a
 session is running.
 
 A user interacts with the same runtime via a notebook UI with cells, outputs,
@@ -92,14 +92,11 @@ targeted session. Check open notebooks with `discover-servers.sh` or
 
 ## Scratchpad Scope
 
-`execute-code` evaluates Python in marimo's scratchpad: a temporary namespace
-with a shallow copy of the kernel globals. Notebook variables are available by
-name, but new top-level bindings and rebindings are discarded after each call.
-In-place mutations to notebook-owned objects can persist because those names
-still reference live objects.
-
-Each call reports stdout and stderr from the scratchpad, plus console output
-from notebook cells it causes to run, including reactive descendants.
+`execute-code` evaluates Python in marimo's scratchpad. Notebook variables are
+available by name; new bindings are discarded when the call ends, but an in-place
+mutation of a notebook-owned object reaches the notebook. See
+[execution-context.md](reference/execution-context.md) for the semantics, what
+each call reports, and the frozen-snapshot rules.
 
 ### Ordinary Python
 
@@ -168,7 +165,7 @@ structural since queued cell runs can still error. `create_cell` and
 
 ### When Changes Are Written
 
-`cm` changes are written to the `.py` artifact only when the context exits
+`cm` changes are written to the `.py` file only when the context exits
 cleanly. Structural edits (`create_cell`/`edit_cell`) apply on exit;
 `run_cell` executes within that exit sequence. If the context raises, the
 queue is discarded and nothing is written. Disk is not the source of truth
@@ -188,7 +185,7 @@ a directed acyclic graph (DAG):
 - **No public redefinitions across cells** - each name has one owning cell.
 - **No wildcard imports** - `import *` prevents static analysis of definitions.
 
-These rules keep the kernel, UI, and saved artifact consistent.
+These rules keep the kernel, UI, and saved file consistent.
 
 When `cm` submits a cell body, marimo parses its top-level definitions and
 references. A top-level name enters the graph unless it is private with a
@@ -271,7 +268,7 @@ targeted `run_cell` calls over repeated full runs.
 ## Writing Notebook Changes
 
 The graph contract keeps marimo able to run and save the notebook. Passing
-those checks alone does not guarantee a useful artifact. Committed cells should
+those checks alone does not guarantee a useful notebook. Committed cells should
 still be readable, rerunnable, and editable.
 
 Make durable edits that reuse the notebook's existing names, imports,
@@ -304,7 +301,7 @@ Submit the code that belongs in the cell.
 Use `cm` APIs when they exist. Avoid direct file edits, shell package commands,
 and scratchpad-only state for changes that should persist.
 
-- **Do not edit the `.py` artifact** - DO NOT use `Edit`, `Write`, or
+- **Do not edit the `.py` file** - DO NOT use `Edit`, `Write`, or
   `NotebookEdit` on the notebook file during a live session. Use
   `ctx.edit_cell(...)` even for small changes.
 - **Manage packages through `cm`** - use `ctx.packages.add()` or

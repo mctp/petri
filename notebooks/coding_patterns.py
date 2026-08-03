@@ -18,7 +18,7 @@ def _():
         PROJECT_ROOT,
         ArtifactError,
         check,
-        list_artifacts,
+        list_preserved,
         load_shared,
         preserve_figure,
         preserve_file,
@@ -28,11 +28,11 @@ def _():
     from petri.r_bridge import pl_to_r, r_eval, r_set, r_to_pl
 
     return (
+        ArtifactError,
         CACHE_DIR,
         PROJECT_ROOT,
-        ArtifactError,
         check,
-        list_artifacts,
+        list_preserved,
         load_shared,
         mo,
         np,
@@ -79,7 +79,7 @@ def _(PROJECT_ROOT, mo):
                 7. **Consume the Interface Layer** — `load_shared()` verifies and restores dtypes; `00_prepare_measurements.py` writes it
                 8. **Preserving a Deliverable** — `preserve_figure()` writes pdf + png + source data + manifest
                 9. **Deliverable Table + Sidecar** — `preserve_table()` and `preserve_file()` sharing one bundle
-                10. **Verification** — `check()` and `list_artifacts()`, the same pass `make check` runs
+                10. **Verification** — `check()` and `list_preserved()`, the same pass `make check` runs
 
                 Patterns 1-6 write to `cache/`, which you can delete. Patterns 7-10 write to
                 `shared/` and `preserved/`. Exploratory output is never committed. A deliverable
@@ -582,7 +582,13 @@ def _(ArtifactError, load_shared, mo, shared_path):
 
 @app.cell(hide_code=True)
 def pattern8_batch_effect(
-    load_shared, measurements, mo, plt, preserve_figure, shared_path, sns
+    load_shared,
+    measurements,
+    mo,
+    plt,
+    preserve_figure,
+    shared_path,
+    sns,
 ):
     # Pattern 8: preserve a deliverable as a figure bundle.
     #
@@ -619,7 +625,7 @@ def pattern8_batch_effect(
             mo.md("### Pattern 8: Preserving a Deliverable (`preserve_figure`)"),
             mo.md(
                 "Writes `figure.pdf` for submission, `figure.png` for review, "
-                "`source-data.csv` with the plotted rows, and `manifest.json` into "
+                "the plotted rows as `figure-source.csv`, and `manifest.json` into "
                 f"`{_bundle.relative_to(_bundle.parents[2])}`. Unchanged content is "
                 "not rewritten, so a re-run produces no git diff."
             ),
@@ -627,7 +633,7 @@ def pattern8_batch_effect(
                 "**Read what you wrote.** An agent reads the written files, not "
                 "the in-memory figure: the `read` tool on\n\n"
                 f"`{(_bundle / 'figure.png').relative_to(_bundle.parents[2])}`\n\n"
-                "and `print()` on `source-data.csv`. `preserve_figure()` requires "
+                "and `print()` on `figure-source.csv`. `preserve_figure()` requires "
                 "`source_data` so the plotted rows are always available as text, "
                 "which is the fallback when a terminal cannot render images."
             ),
@@ -686,13 +692,13 @@ def pattern9_batch_table(measurements, mo, pl, preserve_file, preserve_table):
 
 
 @app.cell(hide_code=True)
-def _(check, list_artifacts, mo):
+def _(check, list_preserved, mo):
     # Pattern 10: verification. This is what `make check` runs.
     #
-    # check() reports content, staleness, and identity drift. list_artifacts()
+    # check() reports content, staleness, and identity drift. list_preserved()
     # reports problems per bundle.
     _report = check()
-    _listing = list_artifacts()
+    _listing = list_preserved()
 
     mo.vstack(
         [

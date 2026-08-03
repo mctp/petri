@@ -1,4 +1,4 @@
-"""Provenance-tracked writes.
+"""Identity, provenance and integrity for what a notebook writes.
 
 An artifact is a file written with a manifest. There are two kinds:
 
@@ -15,6 +15,8 @@ Three functions are absent by design:
     load_preserved()  Preserved artifacts are terminal. A notebook that needs
                       another notebook's result promotes it with save_shared().
     save_external()   external/ is read-only.
+    save_preserved()  The three preserve_* functions take its place. Each writes
+                      different bundle contents, so the kind belongs in the name.
     name inference    The marimo kernel does not expose a cell's name at
                       runtime, only an ephemeral cell id. preserve_*() takes
                       the name as an argument. check() detects a rename.
@@ -479,9 +481,15 @@ def _record_input(manifest: dict[str, Any], entry: dict[str, Any]) -> None:
 # --- public: shared ---------------------------------------------------------
 
 
-def shared_path(name: str) -> Path:
-    """Path to a shared table. Does not verify. See load_shared()."""
-    return SHARED_DIR / f"{name}.csv"
+def shared_path(name: str, suffix: str = ".csv") -> Path:
+    """Path to a shared table. Does not verify. See load_shared().
+
+    `suffix` defaults to `.csv`, which is what save_shared() writes today. A
+    leading dot is optional. Other formats will need it passed explicitly.
+    """
+    if not suffix.startswith("."):
+        suffix = "." + suffix
+    return SHARED_DIR / f"{name}{suffix}"
 
 
 def external_path(relpath: str | Path) -> Path:
@@ -535,15 +543,19 @@ def preserve_figure(
     name: str,
     *,
     source_data: pl.DataFrame,
+    filename: str = "figure",
     title: str | None = None,
     inputs: Iterable[Path | str] = (),
     formats: tuple[str, ...] = ("pdf", "png"),
 ) -> Path:
     """Preserve a figure bundle to preserved/<notebook>/<name>/.
 
-    Writes figure.<fmt> for each format, plus source-data.csv. The source data
-    is the table that was plotted. A journal asks for it, and it cannot be
+    Writes `<filename>.<fmt>` for each format, plus `<filename>-source.csv` with
+    the plotted rows. A journal asks for the source data, and it cannot be
     recovered from the figure object.
+
+    Pass a distinct `filename` for each figure in a cell. Two calls sharing one
+    would overwrite each other, since a bundle belongs to the cell, not the call.
 
     `fig` is a matplotlib Figure or a Path to a rendered file. Use the Path form
     for R output: ggsave writes the file, this function records it. A Path
@@ -568,9 +580,9 @@ def preserve_figure(
         if not src.exists():
             raise ArtifactError(f"figure file does not exist: {src}")
         payload = src.read_bytes()
-        filename = f"figure{src.suffix}"
-        digest = _write_if_changed(bundle / filename, payload)
-        _record_output(manifest, bundle / filename, digest)
+        out_name = f"{filename}{src.suffix}"
+        digest = _write_if_changed(bundle / out_name, payload)
+        _record_output(manifest, bundle / out_name, digest)
     elif hasattr(fig, "savefig"):
         import io
 
@@ -580,17 +592,18 @@ def preserve_figure(
                 buf, format=fmt, metadata=_FIG_METADATA.get(fmt), bbox_inches="tight"
             )
             payload = buf.getvalue()
-            filename = f"figure.{fmt}"
-            digest = _write_if_changed(bundle / filename, payload)
-            _record_output(manifest, bundle / filename, digest)
+            out_name = f"{filename}.{fmt}"
+            digest = _write_if_changed(bundle / out_name, payload)
+            _record_output(manifest, bundle / out_name, digest)
     else:
         raise ArtifactError(
             f"expected a matplotlib Figure or a Path, got {type(fig).__name__}"
         )
 
     payload = _csv_bytes(source_data)
-    digest = _write_if_changed(bundle / "source-data.csv", payload)
-    _record_output(manifest, bundle / "source-data.csv", digest)
+    data_name = f"{filename}-source.csv"
+    digest = _write_if_changed(bundle / data_name, payload)
+    _record_output(manifest, bundle / data_name, digest)
     manifest["schema"] = _schema_of(source_data)
 
     _write_manifest(bundle / "manifest.json", manifest)
@@ -601,14 +614,19 @@ def preserve_table(
     data: pl.DataFrame,
     name: str,
     *,
+    filename: str = "table",
     title: str | None = None,
     inputs: Iterable[Path | str] = (),
 ) -> Path:
-    """Preserve a deliverable table as robust CSV in preserved/<notebook>/<name>/."""
+    """Preserve a deliverable table as robust CSV in preserved/<notebook>/<name>/.
+
+    Writes `<filename>.csv`. Pass a distinct `filename` for each table in a cell.
+    """
     bundle, manifest = _open_bundle(name, title, inputs)
     payload = _csv_bytes(data)
-    digest = _write_if_changed(bundle / "table.csv", payload)
-    _record_output(manifest, bundle / "table.csv", digest)
+    out_name = f"{filename}.csv"
+    digest = _write_if_changed(bundle / out_name, payload)
+    _record_output(manifest, bundle / out_name, digest)
     manifest["schema"] = _schema_of(data)
     _write_manifest(bundle / "manifest.json", manifest)
     return bundle
@@ -750,7 +768,7 @@ def load_external(relpath: str | Path) -> pl.DataFrame:
     )
 
 
-def artifact_path(notebook: str, cell: str, filename: str = "figure.png") -> Path:
+def preserved_path(notebook: str, cell: str, filename: str = "figure.png") -> Path:
     """Path to a file inside a preserved bundle. Raises if it does not exist.
 
     Use it to display, open, or view the file. There is no loader that reads
@@ -763,7 +781,34 @@ def artifact_path(notebook: str, cell: str, filename: str = "figure.png") -> Pat
     return path
 
 
-def list_artifacts(notebook: str | None = None) -> list[dict[str, Any]]:
+def list_shared() -> list[dict[str, Any]]:
+    """Summarise the shared tables, with each one's problems.
+
+    The counterpart to list_preserved(). Without it there is no way to ask what
+    the interface layer holds.
+    """
+    entries = []
+    for manifest_path in sorted(SHARED_DIR.glob("*.manifest.json")):
+        manifest = _load_manifest(manifest_path)
+        if manifest is None:
+            continue
+        entries.append(
+            {
+                "name": manifest.get("id"),
+                "notebook": manifest.get("notebook"),
+                "description": manifest.get("title"),
+                "rows": manifest.get("rows"),
+                "path": _relpath(SHARED_DIR / outputs[0]["filename"])
+                if (outputs := manifest.get("outputs"))
+                else None,
+                "created": manifest.get("created"),
+                "problems": _verify_manifest(manifest, SHARED_DIR),
+            }
+        )
+    return entries
+
+
+def list_preserved(notebook: str | None = None) -> list[dict[str, Any]]:
     """Summarise preserved bundles, newest manifests last.
 
     Each entry carries `problems`, so a caller can skip a figure whose inputs
@@ -1011,15 +1056,15 @@ def check(strict: bool = False) -> CheckReport:
 __all__ = [
     "ArtifactError",
     "CheckReport",
-    "artifact_path",
     "check",
     "external_path",
-    "list_artifacts",
+    "list_preserved",
     "load_external",
     "load_shared",
     "preserve_figure",
     "preserve_file",
     "preserve_table",
+    "preserved_path",
     "save_shared",
     "shared_path",
 ]

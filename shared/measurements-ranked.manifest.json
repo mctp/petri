@@ -2,19 +2,24 @@
   "cell_code_sha256": "ec39d2f5e895f029e578c08832ea32377bcd74be8284c9f63e24dc8e775df3aa",
   "code_deps": [
     {
+      "module": "processing",
+      "path": "processing/__init__.py",
+      "sha256": "521bb5ef55a5774fe0f76878ef1ba8457589f367252744edca80177b0cbe2b52"
+    },
+    {
       "module": "processing.measurements",
       "path": "processing/measurements.py",
       "sha256": "94fc9f74721e043222dcad9f046ceb8f875f09c4807a3f3798a01dffefb1c4b4"
     }
   ],
   "created": "2026-08-02T18:46:45+00:00",
-  "git_commit": "2d076a7",
+  "git_commit": "51dd558",
   "id": "measurements-ranked",
   "inputs": [
     {
       "kind": "external",
-      "mtime": 1785693287,
       "path": "external/example_measurements.csv",
+      "sha256": "9e8e12729503ad830582b73a6cddd90c8511f3ab015eee44650acb98f2950e2f",
       "size": 354
     }
   ],
@@ -24,7 +29,6 @@
   "outputs": [
     {
       "filename": "measurements-ranked.csv",
-      "mtime": 1785696518,
       "sha256": "16029dd6928ba6630c4a2934d4939065d501e82787a86cd791344507863ea51a",
       "size": 354
     }

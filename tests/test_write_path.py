@@ -1,6 +1,6 @@
 """End-to-end test of the write path.
 
-The contract tests in test_artifacts.py cover the kernel-free surface. Writing an
+The contract tests in test_provenance.py cover the kernel-free surface. Writing an
 artifact needs a live marimo runtime, so this test runs the real entry points in
 a subprocess: `make shared` executes the producer notebooks, `make check`
 verifies every manifest.

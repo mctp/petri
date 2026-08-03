@@ -14,27 +14,28 @@ R interop is a separate import, since it pulls in rpy2:
     from petri.r_bridge import pl_to_r, r_eval, r_set, r_to_pl
 """
 
-from .artifacts import (
-    ArtifactError,
-    CheckReport,
-    artifact_path,
-    check,
-    external_path,
-    list_artifacts,
-    load_external,
-    load_shared,
-    preserve_figure,
-    preserve_file,
-    preserve_table,
-    save_shared,
-    shared_path,
-)
 from .paths import (
     CACHE_DIR,
     EXTERNAL_DIR,
     PRESERVED_DIR,
     PROJECT_ROOT,
     SHARED_DIR,
+)
+from .provenance import (
+    ArtifactError,
+    CheckReport,
+    check,
+    external_path,
+    list_preserved,
+    list_shared,
+    load_external,
+    load_shared,
+    preserve_figure,
+    preserve_file,
+    preserve_table,
+    preserved_path,
+    save_shared,
+    shared_path,
 )
 
 __all__ = [
@@ -45,15 +46,16 @@ __all__ = [
     "SHARED_DIR",
     "ArtifactError",
     "CheckReport",
-    "artifact_path",
     "check",
     "external_path",
-    "list_artifacts",
+    "list_preserved",
+    "list_shared",
     "load_external",
     "load_shared",
     "preserve_figure",
     "preserve_file",
     "preserve_table",
+    "preserved_path",
     "save_shared",
     "shared_path",
 ]

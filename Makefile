@@ -10,7 +10,7 @@ export PYTHONPATH := $(CURDIR)
 # under notebooks/ is an analysis notebook and is not run by `make shared`.
 PRODUCERS := $(sort $(wildcard notebooks/[0-9]*.py))
 
-.PHONY: help setup skills-update nb shared test lint fmt check check-strict clean r-restore r-snapshot r-status r-install
+.PHONY: help setup nb shared test lint fmt check check-strict clean r-restore r-snapshot r-status r-install
 
 help: ## Show available targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -20,16 +20,6 @@ setup: ## Create .venv and R library, install git hooks
 	uv sync
 	uv run pre-commit install
 	$(MAKE) r-restore
-
-skills-update: ## Pull latest upstream marimo-pair skill into .pi/skills (review before committing)
-	@set -e; tmp=$$(mktemp -d); \
-		git clone --quiet --depth 1 https://github.com/marimo-team/marimo-pair.git "$$tmp/marimo-pair"; \
-		rm -rf .pi/skills/marimo-pair; \
-		cp -R "$$tmp/marimo-pair/skills/marimo-pair" .pi/skills/marimo-pair; \
-		rm -rf "$$tmp"; \
-		git status --short .pi/skills/marimo-pair; \
-		echo; echo "Synced from upstream. Review, then:"; \
-		echo "  git add .pi/skills/marimo-pair && git commit"
 
 nb: ## Start marimo on notebooks/ (discoverable by the marimo-pair skill)
 	uv run marimo edit notebooks/ --no-token

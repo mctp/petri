@@ -41,6 +41,31 @@ in three ways that matter:
 - **Not visible to the user's notebook view.** Its output goes back over the
   wire to the caller, not into a notebook cell.
 
+### Assignment is discarded, mutation is not
+
+`execute-code` evaluates in a temporary namespace holding a **shallow copy** of
+the kernel globals. Two consequences that do not match each other:
+
+- A new top-level binding or rebinding is **discarded** when the call ends. A
+  later call raises `NameError` for it.
+- An **in-place mutation of a notebook-owned object persists**, because the
+  scratchpad's name still points at the kernel's object.
+
+Verified against a live kernel. With a cell owning `probe_state = {"a": 1}`:
+
+```
+call 1   probe_state["b"] = 2            scratch_only = "x"
+call 2   probe_state -> {'a': 1, 'b': 2}  scratch_only -> NameError
+a cell   probe_state -> {'a': 1, 'b': 2}
+```
+
+So the scratchpad can change notebook state, silently and outside the dependency
+graph: no dependent cell re-runs and the `.py` file is unchanged. Mutate a
+notebook-owned frame, dict or array there only when you intend exactly that.
+
+The reverse direction is asymmetric too: `ctx.globals` records that mutations via
+`run_cell` update the kernel globals but not the scratchpad's copy.
+
 Use the scratchpad for inspection and to drive `cm`. Put anything the user must
 see, re-run, or keep into a cell.
 

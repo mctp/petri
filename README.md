@@ -35,8 +35,8 @@ notebooks/     marimo notebooks. NN_*.py are producers, run by `make shared`
                00_prepare_measurements.py  producer: external -> processing -> shared
                coding_patterns.py          worked examples of every pattern
 processing/    your transformations: pure functions, no I/O
-petri/         template library: paths, artifact provenance, R interop
-tests/         artifact-layer contracts and the write-path test
+petri/         template library: paths, provenance, R interop
+tests/         provenance contracts and the write-path test
 docs/          architecture, renv, rpy2
 ```
 
@@ -60,7 +60,7 @@ deliverables: a figure bundle is a PDF, a PNG, the plotted source data, and a
 manifest. Every write records provenance, and `make check` verifies it.
 
 See [docs/architecture.md](docs/architecture.md) for the design and
-`petri/artifacts.py` for the API.
+`petri/provenance.py` for the API.
 
 ## Commands
 
@@ -92,8 +92,8 @@ make r-install PKG="ggplot2 bioc::DESeq2"  # install and snapshot
 - Notebooks are `.py` files. They diff, review, and run as scripts.
 - Do not edit a notebook file while its kernel runs. The kernel overwrites it.
 - Secrets go in `.env`. Document new keys in `.env.example`.
-- The `marimo-pair` skill is vendored in `.pi/skills/`, not a submodule. See
-  [docs/skill-vendoring.md](docs/skill-vendoring.md).
+- The `marimo-pair` skill is a fork in `.pi/skills/`, owned by this repo. See
+  [docs/marimo-pair-fork.md](docs/marimo-pair-fork.md).
 - Agent instructions are in [AGENTS.md](AGENTS.md).
 
 ## Agents

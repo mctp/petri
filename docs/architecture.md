@@ -67,11 +67,11 @@ with the skill that uses them.
 
 ---
 
-## 5. Artifacts & Data Layers (`petri/artifacts.py`)
+## 5. Artifacts & Data Layers (`petri/provenance.py`)
 
 A marimo notebook is reproducible by construction: the `.py` file is the
 program, and git versions it. That guarantee does not cover what the notebook
-writes. `petri/artifacts.py` adds identity, provenance, and integrity for the
+writes. `petri/provenance.py` adds identity, provenance, and integrity for the
 output.
 
 ### Two kinds of artifact
@@ -171,8 +171,8 @@ Each artifact has one JSON manifest: `shared/<name>.manifest.json`, or
 `manifest.json` inside a preserved bundle. `manifest_version` is checked on
 read; a manifest from a newer petri is an error, not a silent misread. Git ignores the bytes and tracks the
 manifests, so `git log` on a manifest gives the artifact's version history. A
-preserved bundle is tracked in full, because `source-data.csv` holds the plotted
-rows, not the source matrix.
+preserved bundle is tracked in full, because the source data it carries holds the
+plotted rows, not the source matrix.
 
 Manifests record inputs by path and replace a previous entry for the same path.
 An input's fingerprint changes with its content, so a dedup by equality would

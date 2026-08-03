@@ -1,8 +1,8 @@
 {
-  "cell_code_sha256": "abedfb092942123cac892edf39d9018f48b1fc60fc36e38da7167faabccd75a2",
+  "cell_code_sha256": "99e1ea270cc609f9395cf0d9aef1354e6ea618904146e3dbc79f37a5fc852f27",
   "code_deps": [],
-  "created": "2026-08-02T20:20:12+00:00",
-  "git_commit": "2d076a7",
+  "created": "2026-08-03T03:16:16+00:00",
+  "git_commit": "51dd558",
   "id": "pattern8_batch_effect",
   "inputs": [
     {
@@ -17,22 +17,19 @@
   "notebook": "notebooks/coding_patterns.py",
   "outputs": [
     {
+      "filename": "figure-source.csv",
+      "sha256": "16029dd6928ba6630c4a2934d4939065d501e82787a86cd791344507863ea51a",
+      "size": 354
+    },
+    {
       "filename": "figure.pdf",
-      "mtime": 1785702020,
-      "sha256": "d42bbab534fdd353494b725bb2423a5d051680d234ed23b57453f395c7646519",
-      "size": 13177
+      "sha256": "a89c4b8abb14bc1d875256d19ea2e0d52a959321672125655c0d8ae3ae2f5748",
+      "size": 13172
     },
     {
       "filename": "figure.png",
-      "mtime": 1785702020,
-      "sha256": "a4c2bd1b58474675108a87bd103c0ab0b15de7293c65400cae9cd364a7f450f7",
-      "size": 14828
-    },
-    {
-      "filename": "source-data.csv",
-      "mtime": 1785702012,
-      "sha256": "16029dd6928ba6630c4a2934d4939065d501e82787a86cd791344507863ea51a",
-      "size": 354
+      "sha256": "1efd3639270faa989b59bd04ac5992c897f557f4a3c65f0c8c1722ef842e5423",
+      "size": 14887
     }
   ],
   "schema": {

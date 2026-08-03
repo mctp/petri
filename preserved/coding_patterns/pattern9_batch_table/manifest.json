@@ -2,13 +2,18 @@
   "cell_code_sha256": "0dceccf4215ef800264d9e64a614579692b1afc30ee8a2a575e9e55694c51b71",
   "code_deps": [
     {
+      "module": "processing",
+      "path": "processing/__init__.py",
+      "sha256": "521bb5ef55a5774fe0f76878ef1ba8457589f367252744edca80177b0cbe2b52"
+    },
+    {
       "module": "processing.measurements",
       "path": "processing/measurements.py",
       "sha256": "94fc9f74721e043222dcad9f046ceb8f875f09c4807a3f3798a01dffefb1c4b4"
     }
   ],
-  "created": "2026-08-02T20:20:12+00:00",
-  "git_commit": "2d076a7",
+  "created": "2026-08-03T03:16:16+00:00",
+  "git_commit": "51dd558",
   "id": "pattern9_batch_table",
   "inputs": [],
   "kind": "preserved",
@@ -17,13 +22,11 @@
   "outputs": [
     {
       "filename": "params.json",
-      "mtime": 1785702012,
       "sha256": "01d0c76cc0c1ae895f170ed3222afad0ba5cbce246df20a254f6b61f515a4a9c",
       "size": 43
     },
     {
       "filename": "table.csv",
-      "mtime": 1785702012,
       "sha256": "16029dd6928ba6630c4a2934d4939065d501e82787a86cd791344507863ea51a",
       "size": 354
     }
