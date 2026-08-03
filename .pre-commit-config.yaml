@@ -1,12 +1,18 @@
 default_install_hook_types: [pre-commit]
 default_stages: [pre-commit]
 
-# Generated / vendored files: keep them byte-identical to upstream.
+# Generated / vendored files: keep them byte-identical.
+#
+# preserved/ and shared/ hold artifacts whose bytes are pinned by a sha256 in
+# their manifest. A formatting hook that "fixes" a trailing newline changes the
+# hash and makes `make check` fail against a manifest the same commit wrote —
+# generated, hash-pinned output must never be rewritten in place.
 exclude: |
   (?x)^(
     renv/activate\.R|
     renv\.lock|
-    vendor/
+    preserved/|
+    shared/
   )
 
 repos:

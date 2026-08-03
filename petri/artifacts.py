@@ -1,0 +1,1025 @@
+"""Provenance-tracked writes.
+
+An artifact is a file written with a manifest. There are two kinds:
+
+    shared     shared/. The channel between notebooks. save_shared() writes it.
+    preserved  preserved/<notebook>/<name>/. Deliverables for people. Notebook
+               code never reads them. preserve_figure(), preserve_table() and
+               preserve_file() write them.
+
+This module is the only writer of both locations. Reading and verification are
+here as well, which keeps the rule structural instead of a convention.
+
+Three functions are absent by design:
+
+    load_preserved()  Preserved artifacts are terminal. A notebook that needs
+                      another notebook's result promotes it with save_shared().
+    save_external()   external/ is read-only.
+    name inference    The marimo kernel does not expose a cell's name at
+                      runtime, only an ephemeral cell id. preserve_*() takes
+                      the name as an argument. check() detects a rename.
+
+See docs/architecture.md section 5.
+"""
+
+from __future__ import annotations
+
+import ast
+import hashlib
+import json
+import os
+import subprocess
+import sys
+from collections.abc import Iterable
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
+
+import polars as pl
+
+from .paths import EXTERNAL_DIR, PRESERVED_DIR, PROJECT_ROOT, SHARED_DIR
+
+MANIFEST_VERSION = 1
+SCRATCH_CELL_ID = "__scratch__"
+
+# Dependencies install under PROJECT_ROOT (.venv/), so a containment test alone
+# does not separate project code from third-party code.
+_VENDORED_MARKERS = frozenset({".venv", "site-packages", "renv", "node_modules"})
+
+# Floats use the Polars defaults, which give the shortest representation that
+# reads back unchanged. float_precision writes 1e-300 as 0.000000000000 and
+# destroys p-values. Pin only the ambiguous settings.
+CSV_OPTS: dict[str, Any] = {
+    "include_bom": False,
+    "include_header": True,
+    "separator": ",",
+    "quote_char": '"',
+    "line_terminator": "\n",
+    "date_format": "%Y-%m-%d",
+    "datetime_format": "%Y-%m-%dT%H:%M:%S%.f",
+}
+
+# matplotlib stamps a timestamp into every format. Left in, each re-run
+# produces different bytes and every write is a git diff. A format absent from
+# this table has no known suppression key, so preserve_figure rejects it rather
+# than write a figure that can never verify twice.
+_FIG_METADATA = {
+    "png": {"Software": None},
+    "pdf": {"CreationDate": None},
+    "svg": {"Date": None},
+}
+
+
+# --- errors -----------------------------------------------------------------
+
+
+class ArtifactError(RuntimeError):
+    """Raised when an artifact cannot be written or its identity resolved."""
+
+
+@dataclass
+class CheckReport:
+    """Outcome of check(). Errors fail the build; warnings are advisory."""
+
+    problems: list[dict[str, str]]
+    checked: int
+
+    @property
+    def errors(self) -> list[dict[str, str]]:
+        return [p for p in self.problems if p["severity"] == "error"]
+
+    @property
+    def warnings(self) -> list[dict[str, str]]:
+        return [p for p in self.problems if p["severity"] == "warning"]
+
+    @property
+    def ok(self) -> bool:
+        return not self.errors
+
+    def __str__(self) -> str:
+        if not self.problems:
+            return f"{self.checked} artifact(s) verified, no problems"
+        lines = [
+            f"{self.checked} artifact(s) checked — "
+            f"{len(self.errors)} error(s), {len(self.warnings)} warning(s)"
+        ]
+        for problem in self.problems:
+            mark = "ERROR  " if problem["severity"] == "error" else "warning"
+            lines.append(f"  {mark} {problem['artifact']}: {problem['message']}")
+        return "\n".join(lines)
+
+
+# --- identity ---------------------------------------------------------------
+
+
+def _runtime_context():
+    try:
+        from marimo._runtime.context import get_context
+    except ImportError as exc:  # pragma: no cover - marimo always present
+        raise ArtifactError("marimo is not importable") from exc
+    try:
+        return get_context()
+    except Exception as exc:
+        raise ArtifactError(
+            "no marimo runtime context. Call preserve_*() and save_shared() "
+            "from a notebook cell, not from a plain script."
+        ) from exc
+
+
+def _cell_identity() -> tuple[str, str]:
+    """Return (notebook_stem, cell_code) for the calling cell.
+
+    The kernel gives the notebook path and an ephemeral cell id, not the cell
+    name. The public functions therefore take `name` as an argument. The cell
+    code is available and anchors reproducibility.
+    """
+    ctx = _runtime_context()
+    cell_id = getattr(ctx, "cell_id", None)
+    if cell_id is None or str(cell_id) == SCRATCH_CELL_ID:
+        raise ArtifactError(
+            "called from the scratchpad. The scratchpad sits outside the "
+            "notebook and the dependency graph, so it has no identity to "
+            "anchor an artifact to. Move this call into a named cell."
+        )
+    filename = getattr(ctx, "filename", None)
+    if not filename:
+        raise ArtifactError("runtime context has no notebook filename")
+    try:
+        code = ctx.graph.cells[cell_id].code
+    except Exception as exc:
+        raise ArtifactError(f"cannot read code for cell {cell_id}") from exc
+    return Path(filename).stem, code
+
+
+def _notebook_relpath() -> str:
+    ctx = _runtime_context()
+    return _relpath(Path(ctx.filename))
+
+
+# --- hashing and fingerprints -----------------------------------------------
+
+
+def _sha256_bytes(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def _sha256_file(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _code_hash(code: str) -> str:
+    """Hash a cell's source, ignoring whitespace at the edges.
+
+    The kernel reports cell code with a trailing newline. The on-disk form has
+    none. The write side reads the kernel and check() reads the file, so hashing
+    the raw text marks every artifact stale. Trimming the edges makes the two
+    comparable. A change inside the cell still changes the hash.
+    """
+    return _sha256_bytes(code.strip().encode("utf-8"))
+
+
+def _relpath(path: Path) -> str:
+    try:
+        return str(path.resolve().relative_to(PROJECT_ROOT))
+    except ValueError:
+        return str(path.resolve())
+
+
+def _code_deps(cell_code: str) -> list[dict[str, Any]]:
+    """Hash the project-local modules a cell imports.
+
+    A transformation in `processing/` is outside the cell, so the cell hash does
+    not cover it. Rewrite the function, re-run, and no recorded value changes.
+    These hashes close that gap: `make check` then marks the dependent artifacts
+    stale.
+
+    Covers modules under PROJECT_ROOT, except `petri/`, `.venv/` and
+    site-packages. Hashing the template marks every artifact stale on a template
+    update. Dependency versions belong in `tool` and the lockfiles.
+    """
+    try:
+        tree = ast.parse(cell_code)
+    except SyntaxError:
+        return []
+
+    imported: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
+            imported.add(node.module)
+
+    petri_root = (PROJECT_ROOT / "petri").resolve()
+    deps: list[dict[str, Any]] = []
+    for name in sorted(imported):
+        module = sys.modules.get(name)
+        filename = getattr(module, "__file__", None)
+        if not filename:
+            continue
+        path = Path(filename).resolve()
+        if not path.is_relative_to(PROJECT_ROOT) or path.is_relative_to(petri_root):
+            continue
+        if _VENDORED_MARKERS.intersection(path.parts):
+            continue
+        deps.append(
+            {"module": name, "path": _relpath(path), "sha256": _sha256_file(path)}
+        )
+    return deps
+
+
+def _describe_input(path: Path) -> dict[str, Any]:
+    """Classify an input by where it lives.
+
+    external/  Not owned by petri. Fingerprint of (size, mtime) only. This is
+               advisory: it misses a same-size edit inside one second, and it
+               reports a change after a re-download of identical content.
+    shared/    The hash comes from that table's manifest, which pins the input
+               to the published version.
+    other      Hashed directly.
+    """
+    path = Path(path).resolve()
+    if not path.exists():
+        raise ArtifactError(f"declared input does not exist: {path}")
+    stat = path.stat()
+    rel = _relpath(path)
+
+    if path.is_relative_to(EXTERNAL_DIR.resolve()):
+        return {
+            "kind": "external",
+            "path": rel,
+            "size": stat.st_size,
+            "mtime": int(stat.st_mtime),
+        }
+    if path.is_relative_to(SHARED_DIR.resolve()):
+        entry: dict[str, Any] = {"kind": "shared", "path": rel, "name": path.stem}
+        manifest = _load_manifest(path.with_suffix(".manifest.json"))
+        if manifest is not None:
+            recorded = _output_entry(manifest, path.name)
+            if recorded is not None:
+                entry["sha256"] = recorded.get("sha256")
+        return entry
+    return {
+        "kind": "file",
+        "path": rel,
+        "size": stat.st_size,
+        "sha256": _sha256_file(path),
+    }
+
+
+def _git_commit() -> str | None:
+    try:
+        out = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=PROJECT_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return out.stdout.strip() or None if out.returncode == 0 else None
+
+
+# --- writing ----------------------------------------------------------------
+
+
+def _write_if_changed(path: Path, data: bytes) -> str:
+    """Write atomically. Skip the write when the content is unchanged.
+
+    A preserved cell re-runs whenever its dependencies change. Rewriting
+    identical bytes changes the mtime and produces a git diff each time.
+    """
+    digest = _sha256_bytes(data)
+    if path.exists() and _sha256_file(path) == digest:
+        return digest
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_bytes(data)
+    os.replace(tmp, path)
+    return digest
+
+
+def _csv_bytes(data: pl.DataFrame) -> bytes:
+    if not isinstance(data, pl.DataFrame):
+        raise ArtifactError(
+            f"expected a polars DataFrame, got {type(data).__name__}. "
+            "Convert with pl.DataFrame(...) or r_to_pl(...) first."
+        )
+    return data.write_csv(None, **CSV_OPTS).encode("utf-8")
+
+
+def _schema_of(data: pl.DataFrame) -> dict[str, str]:
+    """Record dtypes so a CSV round-trip can restore them.
+
+    shared/ is CSV so agents can grep it; the cost is that CSV carries no
+    types. The schema here is what load_shared() feeds to schema_overrides.
+    """
+    return {name: str(dtype) for name, dtype in data.schema.items()}
+
+
+def _load_manifest(path: Path) -> dict[str, Any] | None:
+    """Read a manifest. Return None when it is missing or not valid JSON.
+
+    Raises ArtifactError for a manifest written by a newer petri, which this
+    version cannot interpret. Without the check an unknown schema would be read
+    as if it were version 1.
+    """
+    if not path.exists():
+        return None
+    try:
+        manifest = json.loads(path.read_text())
+    except json.JSONDecodeError:
+        return None
+    version = manifest.get("manifest_version", 1)
+    if version > MANIFEST_VERSION:
+        raise ArtifactError(
+            f"{_relpath(path)} has manifest_version {version}; this petri reads "
+            f"up to {MANIFEST_VERSION}. Update the template."
+        )
+    return manifest
+
+
+def _output_entry(manifest: dict[str, Any], filename: str) -> dict[str, Any] | None:
+    """Find an output entry by filename.
+
+    A manifest may record several outputs, so index 0 is not the table.
+    """
+    for entry in manifest.get("outputs", []):
+        if entry.get("filename") == filename:
+            return entry
+    return None
+
+
+def _manifest_skeleton(
+    kind: str,
+    artifact_id: str,
+    title: str | None,
+    existing: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    # `created` is the first-seen time, not the last-written time. A new
+    # timestamp on every run rewrites the manifest when nothing else changed.
+    # The output hashes and the git history already show content changes.
+    created = (existing or {}).get("created") or datetime.now(UTC).isoformat(
+        timespec="seconds"
+    )
+    return {
+        "manifest_version": MANIFEST_VERSION,
+        "kind": kind,
+        "id": artifact_id,
+        "title": title,
+        "notebook": _notebook_relpath(),
+        "cell_code_sha256": None,
+        "git_commit": _git_commit(),
+        "created": created,
+        "tool": {"polars": pl.__version__},
+        "code_deps": [],
+        "inputs": [],
+        "outputs": [],
+    }
+
+
+def _write_manifest(path: Path, manifest: dict[str, Any]) -> None:
+    data = json.dumps(manifest, indent=2, sort_keys=True).encode("utf-8") + b"\n"
+    _write_if_changed(path, data)
+
+
+def _resolve_inputs(inputs: Iterable[Path | str]) -> list[dict[str, Any]]:
+    return [_describe_input(Path(item)) for item in inputs]
+
+
+# --- bundles ----------------------------------------------------------------
+
+
+def _bundle_dir(name: str) -> Path:
+    stem, _ = _cell_identity()
+    return PRESERVED_DIR / stem / name
+
+
+def _open_bundle(
+    name: str, title: str | None, inputs: Iterable[Path | str]
+) -> tuple[Path, dict[str, Any]]:
+    """Load or start a bundle manifest for the calling cell.
+
+    A bundle belongs to a cell, not to a file. Several preserve_*() calls in one
+    cell write into one manifest. The cell code hash decides between adding to
+    the manifest and rebuilding it. When the code has changed, the first call of
+    the run empties the bundle, so a deleted preserve_*() line leaves no file
+    that the manifest still lists.
+    """
+    _, code = _cell_identity()
+    code_hash = _code_hash(code)
+    # Resolve inputs before the truncation below: a bad input path must not
+    # first delete the bundle's existing files and only then raise.
+    resolved_inputs = _resolve_inputs(inputs)
+    bundle = _bundle_dir(name)
+    manifest_path = bundle / "manifest.json"
+
+    existing = _load_manifest(manifest_path)
+    manifest = (
+        existing if (existing or {}).get("cell_code_sha256") == code_hash else None
+    )
+
+    if manifest is None:
+        if bundle.exists():
+            for stale in bundle.iterdir():
+                if stale.is_file():
+                    stale.unlink()
+        manifest = _manifest_skeleton("preserved", name, title, existing)
+
+    manifest["cell_code_sha256"] = code_hash
+    manifest["code_deps"] = _code_deps(code)
+    if title is not None:
+        manifest["title"] = title
+    for entry in resolved_inputs:
+        _record_input(manifest, entry)
+    return bundle, manifest
+
+
+def _record_output(manifest: dict[str, Any], path: Path, digest: str) -> None:
+    """Record an output file. Replace a previous entry for the same name.
+
+    The mtime is recorded with the hash so that verification can skip the hash
+    when nothing has touched the file. Any write updates the mtime, and a
+    mismatch starts a hash comparison instead of a failure. A fresh clone
+    verifies correctly and more slowly.
+    """
+    stat = path.stat()
+    filename = path.name
+    manifest["outputs"] = [o for o in manifest["outputs"] if o["filename"] != filename]
+    manifest["outputs"].append(
+        {
+            "filename": filename,
+            "sha256": digest,
+            "size": stat.st_size,
+            "mtime": int(stat.st_mtime),
+        }
+    )
+    manifest["outputs"].sort(key=lambda o: o["filename"])
+
+
+def _record_input(manifest: dict[str, Any], entry: dict[str, Any]) -> None:
+    """Record an input. Replace a previous entry for the same path.
+
+    Keyed by path, not by equality. An input's fingerprint changes with its
+    content, so a dedup by equality appends a second entry. The manifest then
+    claims provenance from a version that no longer exists.
+    """
+    manifest["inputs"] = [
+        i for i in manifest["inputs"] if i.get("path") != entry.get("path")
+    ]
+    manifest["inputs"].append(entry)
+    manifest["inputs"].sort(key=lambda i: i.get("path", ""))
+
+
+# --- public: shared ---------------------------------------------------------
+
+
+def shared_path(name: str) -> Path:
+    """Path to a shared table. Does not verify. See load_shared()."""
+    return SHARED_DIR / f"{name}.csv"
+
+
+def external_path(relpath: str | Path) -> Path:
+    """Path to an unowned input under external/."""
+    return EXTERNAL_DIR / relpath
+
+
+def save_shared(
+    data: pl.DataFrame,
+    name: str,
+    *,
+    inputs: Iterable[Path | str],
+    description: str | None = None,
+) -> Path:
+    """Publish an shared table to shared/<name>.csv.
+
+    The only writer of shared/. `inputs` is required. A shared table with no
+    declared provenance cannot be verified, and every consumer inherits the gap.
+
+    Call this outside any mo.persistent_cache block. On a cache hit marimo skips
+    the block and its side effects, and the write does not happen.
+    """
+    # Resolve identity and inputs before any write. If either fails after the
+    # CSV lands, shared/ holds a table with no manifest.
+    _, code = _cell_identity()
+    resolved_inputs = _resolve_inputs(inputs)
+    payload = _csv_bytes(data)
+
+    target = shared_path(name)
+    digest = _write_if_changed(target, payload)
+
+    manifest_path = SHARED_DIR / f"{name}.manifest.json"
+    manifest = _manifest_skeleton(
+        "shared", name, description, _load_manifest(manifest_path)
+    )
+    manifest["cell_code_sha256"] = _code_hash(code)
+    manifest["code_deps"] = _code_deps(code)
+    manifest["inputs"] = resolved_inputs
+    manifest["schema"] = _schema_of(data)
+    manifest["rows"] = data.height
+    _record_output(manifest, target, digest)
+    _write_manifest(manifest_path, manifest)
+    return target
+
+
+# --- public: preserved ------------------------------------------------------
+
+
+def preserve_figure(
+    fig: Any,
+    name: str,
+    *,
+    source_data: pl.DataFrame,
+    title: str | None = None,
+    inputs: Iterable[Path | str] = (),
+    formats: tuple[str, ...] = ("pdf", "png"),
+) -> Path:
+    """Preserve a figure bundle to preserved/<notebook>/<name>/.
+
+    Writes figure.<fmt> for each format, plus source-data.csv. The source data
+    is the table that was plotted. A journal asks for it, and it cannot be
+    recovered from the figure object.
+
+    `fig` is a matplotlib Figure or a Path to a rendered file. Use the Path form
+    for R output: ggsave writes the file, this function records it. A Path
+    supplies one format.
+
+    Each format in `formats` needs a timestamp-suppression key in _FIG_METADATA;
+    a format without one is rejected.
+    """
+    unknown = [f for f in formats if f not in _FIG_METADATA]
+    if unknown:
+        raise ArtifactError(
+            f"no timestamp-suppression key for format(s) {unknown}. "
+            f"Known: {sorted(_FIG_METADATA)}. A format without one writes a "
+            "new timestamp on every run and never verifies twice."
+        )
+
+    bundle, manifest = _open_bundle(name, title, inputs)
+    bundle.mkdir(parents=True, exist_ok=True)
+
+    if isinstance(fig, (str, Path)):
+        src = Path(fig)
+        if not src.exists():
+            raise ArtifactError(f"figure file does not exist: {src}")
+        payload = src.read_bytes()
+        filename = f"figure{src.suffix}"
+        digest = _write_if_changed(bundle / filename, payload)
+        _record_output(manifest, bundle / filename, digest)
+    elif hasattr(fig, "savefig"):
+        import io
+
+        for fmt in formats:
+            buf = io.BytesIO()
+            fig.savefig(
+                buf, format=fmt, metadata=_FIG_METADATA.get(fmt), bbox_inches="tight"
+            )
+            payload = buf.getvalue()
+            filename = f"figure.{fmt}"
+            digest = _write_if_changed(bundle / filename, payload)
+            _record_output(manifest, bundle / filename, digest)
+    else:
+        raise ArtifactError(
+            f"expected a matplotlib Figure or a Path, got {type(fig).__name__}"
+        )
+
+    payload = _csv_bytes(source_data)
+    digest = _write_if_changed(bundle / "source-data.csv", payload)
+    _record_output(manifest, bundle / "source-data.csv", digest)
+    manifest["schema"] = _schema_of(source_data)
+
+    _write_manifest(bundle / "manifest.json", manifest)
+    return bundle
+
+
+def preserve_table(
+    data: pl.DataFrame,
+    name: str,
+    *,
+    title: str | None = None,
+    inputs: Iterable[Path | str] = (),
+) -> Path:
+    """Preserve a deliverable table as robust CSV in preserved/<notebook>/<name>/."""
+    bundle, manifest = _open_bundle(name, title, inputs)
+    payload = _csv_bytes(data)
+    digest = _write_if_changed(bundle / "table.csv", payload)
+    _record_output(manifest, bundle / "table.csv", digest)
+    manifest["schema"] = _schema_of(data)
+    _write_manifest(bundle / "manifest.json", manifest)
+    return bundle
+
+
+def preserve_file(
+    src: Path | str | bytes,
+    name: str,
+    *,
+    filename: str | None = None,
+    title: str | None = None,
+    inputs: Iterable[Path | str] = (),
+) -> Path:
+    """Preserve an already-serialized payload into preserved/<notebook>/<name>/.
+
+    A Path copies that file in, and `filename` defaults to its basename. bytes
+    or str are written as content and `filename` is required. A str is always
+    content, never a path: pass Path(...) to copy a file. The caller serializes;
+    petri has no format registry and no pickle surface.
+
+        preserve_file(json.dumps(params, indent=2), "fig2b", filename="params.json")
+        preserve_file(model_path, "fig2b")
+    """
+    if isinstance(src, (bytes, str)):
+        if filename is None:
+            raise ArtifactError(
+                "filename is required when src is bytes or str. To copy a file "
+                "instead, pass Path(...)."
+            )
+        payload = src.encode("utf-8") if isinstance(src, str) else src
+    else:
+        path = Path(src)
+        if not path.exists():
+            raise ArtifactError(f"file does not exist: {path}")
+        payload = path.read_bytes()
+        filename = filename or path.name
+
+    bundle, manifest = _open_bundle(name, title, inputs)
+
+    digest = _write_if_changed(bundle / filename, payload)
+    _record_output(manifest, bundle / filename, digest)
+    _write_manifest(bundle / "manifest.json", manifest)
+    return bundle
+
+
+# --- reading ----------------------------------------------------------------
+
+# A container dtype needs an inner type. A bare pl.List is not a usable
+# override, so skip it and let Polars infer. The content hash guarantees
+# correctness; the schema only restores in-memory types.
+_CONTAINER_DTYPES = frozenset({"List", "Struct", "Array"})
+
+
+def _schema_overrides(schema: dict[str, str] | None) -> dict[str, Any]:
+    overrides: dict[str, Any] = {}
+    for column, name in (schema or {}).items():
+        base = name.split("(")[0]
+        if base in _CONTAINER_DTYPES:
+            continue
+        dtype = getattr(pl, base, None)
+        if isinstance(dtype, type) and issubclass(dtype, pl.DataType):
+            overrides[column] = dtype
+    return overrides
+
+
+def _verify_file(path: Path, entry: dict[str, Any], strict: bool = False) -> str | None:
+    """Return a problem description, or None when the file matches its entry.
+
+    Size is checked first (a cheap reject), then mtime as a fast path, then the
+    hash. Only `strict` forces a hash when mtime already matches.
+    """
+    if not path.exists():
+        return f"{entry['filename']}: missing"
+    stat = path.stat()
+    if stat.st_size != entry.get("size"):
+        return f"{entry['filename']}: size changed since it was written"
+    if (
+        not strict
+        and entry.get("mtime") is not None
+        and int(stat.st_mtime) == entry["mtime"]
+    ):
+        return None
+    if _sha256_file(path) != entry.get("sha256"):
+        return f"{entry['filename']}: content changed since it was written"
+    return None
+
+
+def load_shared(name: str) -> pl.DataFrame:
+    """Read a shared table and verify it against its manifest.
+
+    A shared table that was edited by hand, truncated, or written by anything
+    other than save_shared() fails here, before it reaches a figure.
+
+    Dtypes come from the schema recorded at write time. shared/ is CSV so that
+    it stays readable with grep, and CSV carries no types.
+    """
+    manifest_path = SHARED_DIR / f"{name}.manifest.json"
+    manifest = _load_manifest(manifest_path)
+    if manifest is None:
+        raise ArtifactError(
+            f"no manifest for shared table '{name}'. Either it was never "
+            f"published with save_shared(), or {manifest_path.name} was lost."
+        )
+    target = shared_path(name)
+    entry = _output_entry(manifest, target.name)
+    if entry is None:
+        raise ArtifactError(f"manifest for '{name}' records no output file")
+    problem = _verify_file(target, entry)
+    if problem is not None:
+        raise ArtifactError(
+            f"shared table '{name}' failed verification: {problem}. "
+            "Re-run the producer notebook. Do not edit shared/ by hand."
+        )
+    return pl.read_csv(
+        target, schema_overrides=_schema_overrides(manifest.get("schema"))
+    )
+
+
+def load_external(relpath: str | Path) -> pl.DataFrame:
+    """Read a tabular file from external/.
+
+    For producer notebooks. This is the one crossing of the ownership boundary.
+    For a non-tabular input, use external_path() and read the file yourself.
+    Declare the path in `inputs=` either way, so the fingerprint is recorded.
+    """
+    path = external_path(relpath)
+    if not path.exists():
+        raise ArtifactError(f"external input does not exist: {_relpath(path)}")
+    suffix = path.suffix.lower()
+    if suffix == ".csv":
+        return pl.read_csv(path)
+    if suffix in {".tsv", ".txt"}:
+        return pl.read_csv(path, separator="\t")
+    if suffix == ".parquet":
+        return pl.read_parquet(path)
+    raise ArtifactError(
+        f"load_external does not handle '{suffix}'. Use external_path() and "
+        "read it with the appropriate library."
+    )
+
+
+def artifact_path(notebook: str, cell: str, filename: str = "figure.png") -> Path:
+    """Path to a file inside a preserved bundle. Raises if it does not exist.
+
+    Use it to display, open, or view the file. There is no loader that reads
+    artifact data into a notebook namespace. That absence keeps deliverables
+    terminal.
+    """
+    path = PRESERVED_DIR / notebook / cell / filename
+    if not path.exists():
+        raise ArtifactError(f"no such artifact file: {_relpath(path)}")
+    return path
+
+
+def list_artifacts(notebook: str | None = None) -> list[dict[str, Any]]:
+    """Summarise preserved bundles, newest manifests last.
+
+    Each entry carries `problems`, so a caller can skip a figure whose inputs
+    have changed.
+    """
+    root = PRESERVED_DIR / notebook if notebook else PRESERVED_DIR
+    if not root.exists():
+        return []
+    entries = []
+    for manifest_path in sorted(root.rglob("manifest.json")):
+        manifest = _load_manifest(manifest_path)
+        if manifest is None:
+            continue
+        base = manifest_path.parent
+        entries.append(
+            {
+                "id": manifest.get("id"),
+                "notebook": manifest.get("notebook"),
+                "title": manifest.get("title"),
+                "path": _relpath(base),
+                "files": [o["filename"] for o in manifest.get("outputs", [])],
+                "created": manifest.get("created"),
+                "problems": _verify_manifest(manifest, base),
+            }
+        )
+    return entries
+
+
+# --- verification -----------------------------------------------------------
+
+
+UNNAMED_CELL = "_"
+
+
+def _notebook_cells(path: Path) -> list[tuple[str, str]]:
+    """Return (cell name, cell code) for every cell in a notebook on disk.
+
+    Returns a list, not a dict. marimo names every unnamed cell `_`, so a dict
+    keyed by name holds one of them and drops the rest. Lookups by a real name
+    still work against such a dict, so only the scan over all cells failed.
+
+    Uses marimo's loader instead of parsing the AST here, so the code text
+    matches what the kernel reports and the hashes are comparable.
+    """
+    try:
+        from marimo._ast.load import load_app
+
+        app = load_app(str(path))
+    except Exception:
+        return []
+    if app is None:
+        return []
+    manager = app._cell_manager
+    return [
+        (manager.cell_name(cid), manager.cell_data_at(cid).code)
+        for cid in manager.cell_ids()
+    ]
+
+
+def _verify_manifest(
+    manifest: dict[str, Any], base: Path, strict: bool = False
+) -> list[dict[str, str]]:
+    """Verify one manifest's outputs and inputs. Returns problem dicts."""
+    problems: list[dict[str, str]] = []
+
+    def add(severity: str, message: str) -> None:
+        problems.append({"severity": severity, "message": message})
+
+    for entry in manifest.get("outputs", []):
+        problem = _verify_file(base / entry["filename"], entry, strict)
+        if problem:
+            add("error", problem)
+
+    for entry in manifest.get("inputs", []):
+        path = PROJECT_ROOT / entry["path"]
+        if not path.exists():
+            add("error", f"input missing: {entry['path']}")
+            continue
+        kind = entry.get("kind")
+        if kind == "external":
+            stat = path.stat()
+            if stat.st_size != entry.get("size") or int(stat.st_mtime) != entry.get(
+                "mtime"
+            ):
+                # Advisory by design: external is unowned, and size+mtime fires
+                # on a benign re-download as readily as on a real edit.
+                add("warning", f"external input drifted: {entry['path']}")
+        elif kind == "shared":
+            current = _load_manifest(path.with_suffix(".manifest.json"))
+            recorded = _output_entry(current, path.name) if current else None
+            current_sha = recorded.get("sha256") if recorded else None
+            if current_sha != entry.get("sha256"):
+                add(
+                    "error",
+                    f"built from an older version of {entry['path']}; re-run this cell",
+                )
+        elif entry.get("sha256") and _sha256_file(path) != entry["sha256"]:
+            add("error", f"input changed: {entry['path']}")
+
+    # Transformations in processing/ are outside the cell, so the cell code
+    # hash does not cover them. This is an error, not a warning: if the function
+    # that produced the output changed, the output is out of date.
+    for entry in manifest.get("code_deps", []):
+        path = PROJECT_ROOT / entry["path"]
+        if not path.exists():
+            add("error", f"module missing: {entry['path']}")
+        elif _sha256_file(path) != entry.get("sha256"):
+            add(
+                "error",
+                f"{entry['module']} changed since this was written; re-run the cell",
+            )
+
+    return problems
+
+
+def check(strict: bool = False) -> CheckReport:
+    """Verify every manifest under shared/ and preserved/.
+
+    Covers three kinds of drift:
+
+      content   an output or input no longer matches the hash recorded for it
+      staleness an artifact pinned to a superseded version of a shared table
+      identity  a preserved bundle whose producing cell was renamed, deleted,
+                or edited since the artifact was written
+
+    The identity pass covers the name argument on preserve_*(). Rename the cell
+    without renaming the artifact and this check fails.
+
+    `strict` hashes every file, even when the size and mtime match.
+    """
+    problems: list[dict[str, str]] = []
+    checked = 0
+    cells_by_notebook: dict[str, list[tuple[str, str]]] = {}
+
+    def cells_for(notebook: str) -> list[tuple[str, str]]:
+        if notebook not in cells_by_notebook:
+            cells_by_notebook[notebook] = _notebook_cells(PROJECT_ROOT / notebook)
+        return cells_by_notebook[notebook]
+
+    def collect(artifact: str, found: list[dict[str, str]]) -> None:
+        for problem in found:
+            problems.append({"artifact": artifact, **problem})
+
+    for manifest_path in sorted(SHARED_DIR.glob("*.manifest.json")):
+        manifest = _load_manifest(manifest_path)
+        if manifest is None:
+            problems.append(
+                {
+                    "artifact": manifest_path.name,
+                    "severity": "error",
+                    "message": "unreadable manifest",
+                }
+            )
+            continue
+        checked += 1
+        collect(
+            f"shared/{manifest.get('id')}",
+            _verify_manifest(manifest, SHARED_DIR, strict),
+        )
+        # A shared table has no cell name to anchor to: save_shared() takes the
+        # table name. The only identity check available is whether some cell in
+        # the producer notebook still carries the code that wrote it. This is a
+        # warning. The contents are still verified; only the path back to the
+        # producer is missing.
+        notebook = manifest.get("notebook")
+        cells = cells_for(notebook) if notebook else []
+        if cells and manifest.get("cell_code_sha256") not in {
+            _code_hash(code) for _, code in cells
+        }:
+            collect(
+                f"shared/{manifest.get('id')}",
+                [
+                    {
+                        "severity": "warning",
+                        "message": (
+                            f"no cell in {notebook} matches the code that produced "
+                            "this table; the producer was edited or removed"
+                        ),
+                    }
+                ],
+            )
+
+    for manifest_path in sorted(PRESERVED_DIR.rglob("manifest.json")):
+        manifest = _load_manifest(manifest_path)
+        if manifest is None:
+            problems.append(
+                {
+                    "artifact": _relpath(manifest_path),
+                    "severity": "error",
+                    "message": "unreadable manifest",
+                }
+            )
+            continue
+        checked += 1
+        base = manifest_path.parent
+        artifact_id = manifest.get("id") or base.name
+        label = f"{base.parent.name}/{artifact_id}"
+        collect(label, _verify_manifest(manifest, base, strict))
+
+        notebook = manifest.get("notebook")
+        cells = cells_for(notebook) if notebook else []
+        named = {n: c for n, c in cells if n != UNNAMED_CELL}
+        if not cells:
+            collect(
+                label,
+                [
+                    {
+                        "severity": "warning",
+                        "message": f"cannot read cells of {notebook}",
+                    }
+                ],
+            )
+        elif artifact_id not in named:
+            collect(
+                label,
+                [
+                    {
+                        "severity": "error",
+                        "message": (
+                            f"no cell named '{artifact_id}' in {notebook}; the "
+                            "cell was renamed or deleted, orphaning this bundle"
+                        ),
+                    }
+                ],
+            )
+        else:
+            current = _code_hash(named[artifact_id])
+            if current != manifest.get("cell_code_sha256"):
+                collect(
+                    label,
+                    [
+                        {
+                            "severity": "error",
+                            "message": (
+                                f"cell '{artifact_id}' changed since this was "
+                                "written; re-run it to update the artifact"
+                            ),
+                        }
+                    ],
+                )
+
+    return CheckReport(problems=problems, checked=checked)
+
+
+__all__ = [
+    "ArtifactError",
+    "CheckReport",
+    "artifact_path",
+    "check",
+    "external_path",
+    "list_artifacts",
+    "load_external",
+    "load_shared",
+    "preserve_figure",
+    "preserve_file",
+    "preserve_table",
+    "save_shared",
+    "shared_path",
+]

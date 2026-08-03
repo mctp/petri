@@ -67,8 +67,8 @@ global install, sandbox mode). If the notebook file contains a PEP 723 `#
 /// script` header, it MUST be opened with `--sandbox` — otherwise marimo
 ignores the inline dependencies. See
 [finding-marimo.md](reference/finding-marimo.md) for the full decision tree and
-[execution-context.md](reference/execution-context.md) for scripts, MCP, and
-shell quoting.
+[connection-troubleshooting.md](reference/connection-troubleshooting.md) for
+targeting, auth, and shell quoting.
 
 ## Server, Session, and Kernel
 
@@ -78,6 +78,12 @@ kernel process; notebook globals live in that kernel.
 
 `execute-code` and `cm` operate on the targeted session's kernel. The
 scratchpad is per-kernel, so state does not cross notebooks.
+
+A session is identified by a **session id**, not a filename. The scratchpad sees
+every notebook global but sits outside the `.py` file and outside the dependency
+graph, so nothing run there persists or triggers dependents. See
+[execution-context.md](reference/execution-context.md) for the full model,
+the frozen-snapshot rules, and what the `done` event can and cannot carry back.
 
 Multiple sessions are common (one per open notebook). Target explicitly with
 `--session` when more than one exists; `cm.get_context()` binds to the
@@ -324,7 +330,8 @@ For designing custom visual or interactive output, see
 
 ## References
 
-- [execution-context.md](reference/execution-context.md) — scripts, MCP, auth, startup, and shell quoting
+- [execution-context.md](reference/execution-context.md) — server/session/kernel/scratchpad model, frozen snapshots, what `done` returns
+- [connection-troubleshooting.md](reference/connection-troubleshooting.md) — targeting, auth, quoting, and script errors
 - [finding-marimo.md](reference/finding-marimo.md) — choosing the right marimo invocation
 - [gotchas.md](reference/gotchas.md) — name redefinition, cached module proxies, and notebook traps
 - [rich-representations.md](reference/rich-representations.md) — custom widgets and visualizations

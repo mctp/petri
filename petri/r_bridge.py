@@ -7,7 +7,7 @@ Initializes R with working directory = project root, so R automatically reads
 import os
 from typing import Any
 
-from paths import DATA_DIR, OUTPUTS_DIR, PROJECT_ROOT
+from .paths import PROJECT_ROOT
 
 os.chdir(PROJECT_ROOT)
 os.environ.setdefault("RPY2_CFFI_MODE", "ABI")
@@ -60,8 +60,6 @@ def r_to_pl(r_var_name: str) -> pl.DataFrame:
 
 
 __all__ = [
-    "DATA_DIR",
-    "OUTPUTS_DIR",
     "PROJECT_ROOT",
     "pl_to_r",
     "r_eval",

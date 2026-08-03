@@ -10,10 +10,10 @@ def _():
     import numpy as np
     import polars as pl
 
-    from paths import OUTPUTS_DIR, PROJECT_ROOT
-    from r_bridge import pl_to_r, r_eval, r_set
+    from petri import CACHE_DIR, PROJECT_ROOT
+    from petri.r_bridge import pl_to_r, r_eval, r_set
 
-    return OUTPUTS_DIR, PROJECT_ROOT, mo, np, pl, pl_to_r, r_eval, r_set
+    return CACHE_DIR, PROJECT_ROOT, mo, np, pl, pl_to_r, r_eval, r_set
 
 
 @app.cell(hide_code=True)
@@ -73,9 +73,9 @@ def _(np, pl, pl_to_r):
 
 
 @app.cell(hide_code=True)
-def _(OUTPUTS_DIR, df, mo, r_eval, r_set):
+def _(CACHE_DIR, df, mo, r_eval, r_set):
     _ = df  # marimo DAG dependency
-    plot_path = OUTPUTS_DIR / "r_example_ggpubr.png"
+    plot_path = CACHE_DIR / "r_example_ggpubr.png"
 
     r_set("plot_path", str(plot_path))
 
@@ -133,7 +133,8 @@ def _(OUTPUTS_DIR, df, mo, r_eval, r_set):
                 [
                     mo.md(
                         "**Method 1: Save to disk via `ggsave` and load with `mo.image`**\n\n"
-                        "Durable figure artifact saved in `outputs/r_example_ggpubr.png`."
+                        "Rendered to `cache/r_example_ggpubr.png`. Use "
+                        "`preserve_figure()` for a deliverable."
                     ),
                     v1,
                 ]

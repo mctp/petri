@@ -61,7 +61,7 @@ manager = "uv"
 
 [runtime]
 auto_instantiate = false
-auto_reload = "off"
+auto_reload = "lazy"
 default_csv_encoding = "utf-8"
 default_sql_output = "auto"
 dotenv = [".env"]

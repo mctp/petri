@@ -1,0 +1,44 @@
+{
+  "cell_code_sha256": "ca946a3351f754c717fae2291e9d81344fff0d127c21eac6217dfc0cfe46b043",
+  "code_deps": [
+    {
+      "module": "processing.measurements",
+      "path": "processing/measurements.py",
+      "sha256": "94fc9f74721e043222dcad9f046ceb8f875f09c4807a3f3798a01dffefb1c4b4"
+    }
+  ],
+  "created": "2026-08-02T18:46:30+00:00",
+  "git_commit": "2d076a7",
+  "id": "batch-stats",
+  "inputs": [
+    {
+      "kind": "external",
+      "mtime": 1785693287,
+      "path": "external/example_measurements.csv",
+      "size": 354
+    }
+  ],
+  "kind": "shared",
+  "manifest_version": 1,
+  "notebook": "notebooks/00_prepare_measurements.py",
+  "outputs": [
+    {
+      "filename": "batch-stats.csv",
+      "mtime": 1785696518,
+      "sha256": "c6f9944fc76e07a477c3aa0247fff0f99b00ce37a6d734426cf8ebea3455a7b2",
+      "size": 137
+    }
+  ],
+  "rows": 4,
+  "schema": {
+    "batch": "String",
+    "group": "String",
+    "mean_intensity": "Float64",
+    "min_p": "Float64",
+    "n": "UInt32"
+  },
+  "title": "Mean intensity and strongest p-value per batch and group",
+  "tool": {
+    "polars": "1.43.1"
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "cell_code_sha256": "ec39d2f5e895f029e578c08832ea32377bcd74be8284c9f63e24dc8e775df3aa",
+  "code_deps": [
+    {
+      "module": "processing.measurements",
+      "path": "processing/measurements.py",
+      "sha256": "94fc9f74721e043222dcad9f046ceb8f875f09c4807a3f3798a01dffefb1c4b4"
+    }
+  ],
+  "created": "2026-08-02T18:46:45+00:00",
+  "git_commit": "2d076a7",
+  "id": "measurements-ranked",
+  "inputs": [
+    {
+      "kind": "external",
+      "mtime": 1785693287,
+      "path": "external/example_measurements.csv",
+      "size": 354
+    }
+  ],
+  "kind": "shared",
+  "manifest_version": 1,
+  "notebook": "notebooks/00_prepare_measurements.py",
+  "outputs": [
+    {
+      "filename": "measurements-ranked.csv",
+      "mtime": 1785696518,
+      "sha256": "16029dd6928ba6630c4a2934d4939065d501e82787a86cd791344507863ea51a",
+      "size": 354
+    }
+  ],
+  "rows": 12,
+  "schema": {
+    "batch": "String",
+    "group": "String",
+    "intensity": "Float64",
+    "p_value": "Float64",
+    "sample_id": "String"
+  },
+  "title": "Samples ordered by ascending p-value",
+  "tool": {
+    "polars": "1.43.1"
+  }
+}

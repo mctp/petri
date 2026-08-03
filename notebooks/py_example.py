@@ -12,9 +12,9 @@ def _():
     import polars as pl
     import seaborn as sns
 
-    from paths import OUTPUTS_DIR, PROJECT_ROOT
+    from petri import CACHE_DIR, PROJECT_ROOT
 
-    return OUTPUTS_DIR, PROJECT_ROOT, mo, np, pl, plt, sns
+    return CACHE_DIR, PROJECT_ROOT, mo, np, pl, plt, sns
 
 
 @app.cell(hide_code=True)
@@ -71,10 +71,12 @@ def _(np, pl):
 
 
 @app.cell(hide_code=True)
-def _(OUTPUTS_DIR, df, mo, pl, plt, sns):
+def _(CACHE_DIR, df, mo, pl, plt, sns):
     from scipy import stats
 
-    plot_path = OUTPUTS_DIR / "py_example_seaborn.png"
+    # cache/ holds exploratory output and you can delete it. A figure that
+    # ships goes through preserve_figure(). See coding_patterns.py pattern 8.
+    plot_path = CACHE_DIR / "py_example_seaborn.png"
 
     p_df = df.to_pandas()
 

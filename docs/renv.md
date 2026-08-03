@@ -61,11 +61,11 @@ library path, sweeping the base and recommended packages out of renv's sandbox
 
 ## Using the project library from a notebook
 
-`r_bridge.py` handles initializing R from the project root automatically when
+`petri/r_bridge.py` handles initializing R from the project root automatically when
 imported:
 
 ```python
-from r_bridge import pl_to_r, r_eval, r_set, r_to_pl
+from petri.r_bridge import pl_to_r, r_eval, r_set, r_to_pl
 ```
 
 When `r_bridge` is imported, it sets the working directory to `PROJECT_ROOT`

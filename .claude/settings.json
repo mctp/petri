@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bash .pi/skills/marimo-pair/scripts/execute-code.sh *)",
+      "Bash(bash .pi/skills/marimo-pair/scripts/discover-servers.sh *)",
+      "Bash(bash .claude/skills/marimo-pair/scripts/execute-code.sh *)",
+      "Bash(bash .claude/skills/marimo-pair/scripts/discover-servers.sh *)",
+      "Bash(curl -s http://localhost:2718/api/sessions*)",
+      "Bash(make *)",
+      "Bash(uv run *)"
+    ]
+  }
+}

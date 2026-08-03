@@ -1,0 +1,13 @@
+sample_id,batch,group,intensity,p_value
+S01,A,tumor,11.4667,1e-300
+S07,A,normal,10.2185,1e-300
+S02,B,tumor,12.1008,4.2e-8
+S08,B,normal,10.3976,4.2e-8
+S03,A,tumor,12.1851,0.031
+S09,A,normal,10.1366,0.031
+S06,B,tumor,12.7891,0.12
+S12,B,normal,11.1878,0.12
+S04,B,tumor,12.4264,0.44
+S10,B,normal,10.7081,0.44
+S05,A,tumor,11.3357,0.9
+S11,A,normal,10.0286,0.9

@@ -9,9 +9,14 @@ def _():
     import marimo as mo
     import polars as pl
 
-    from paths import DATA_DIR, OUTPUTS_DIR, PROJECT_ROOT
+    from petri import (
+        PROJECT_ROOT,
+        load_shared,
+        preserve_figure,
+        preserve_table,
+    )
 
-    return DATA_DIR, OUTPUTS_DIR, PROJECT_ROOT, mo, pl
+    return PROJECT_ROOT, load_shared, mo, pl, preserve_figure, preserve_table
 
 
 @app.cell(hide_code=True)
@@ -23,6 +28,25 @@ def _(PROJECT_ROOT, mo):
                 # Blank Analysis Notebook
 
                 Starter template for data science work in `petri`.
+
+                ## Where output goes
+
+This is an **analysis notebook**: it reads `shared/` and writes `preserved/`.
+
+                | Want | Use |
+                |---|---|
+                | data to work from | `load_shared("name")` |
+                | a quick look while iterating | plot in the cell; nothing on disk |
+                | a figure that ships | `preserve_figure(fig, "<this cell's name>", source_data=df)` |
+                | a deliverable table or sidecar | `preserve_table()` / `preserve_file()` |
+
+                Name the cell to match the artifact name. `make check` verifies this and
+                fails after a rename. Keep exploratory plots in the cell and preserve only
+                what ships. See `coding_patterns.py` patterns 7-10.
+
+                To write a **new** `shared/` table, add a producer notebook
+                (`notebooks/NN_name.py`) and run `make shared`. See
+                `00_prepare_measurements.py`.
 
                 ## External Resources
 

@@ -27,7 +27,11 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = ["ruff>=0.9", "pre-commit>=4.1"]
+dev = [
+    "ruff>=0.9",
+ "pre-commit>=4.1",
+ "pytest>=9.1.1",
+]
 
 # This project is a workspace for notebooks, not an installable package.
 [tool.uv]
@@ -37,7 +41,7 @@ default-groups = ["dev"]
 [tool.ruff]
 line-length = 88
 target-version = "py313"
-extend-exclude = ["**/__marimo__", "vendor/**"]
+extend-exclude = ["**/__marimo__"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "PD", "NPY", "RUF"]
@@ -50,3 +54,6 @@ ignore = [
 
 [tool.ruff.format]
 docstring-code-format = true
+
+[tool.pytest.ini_options]
+markers = ["slow: runs the real make targets in a subprocess"]

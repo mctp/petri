@@ -22,14 +22,26 @@ marimo.log
 .RData
 .Rproj.user/
 
-# ---- Data (keep the tree, not the payload) --------------------------------
-data/raw/*
-data/interim/*
-data/processed/*
-data/external/*
-!data/**/.gitkeep
-outputs/*
-!outputs/.gitkeep
+# ---- Data (keep the tree and the provenance, not the payload) --------------
+# Each directory is named for the API verb that writes it.
+# external/   load_external()  — unowned; never versioned, fingerprinted only
+# shared/     save_shared()    — interface layer; bytes ignored, manifests kept
+# cache/      persistent_cache — disposable
+external/*
+cache/*
+shared/*
+!shared/*.manifest.json
+!external/.gitkeep
+!cache/.gitkeep
+!shared/.gitkeep
+# Committed exception: the fixture coding_patterns.py needs as a stand-in for
+# data that would normally arrive from outside. Real inputs stay untracked.
+!external/example_measurements.csv
+
+# ---- preserved/ (terminal deliverables — tracked wholesale) ----------------
+# preserve_figure() / preserve_table() / preserve_file(). Bundles are small by
+# construction: source-data.csv is what was plotted, not the matrix behind it.
+# Nothing here is ignored.
 
 # ---- Agent / editor local state -------------------------------------------
 .pi/sessions/
