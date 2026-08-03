@@ -23,13 +23,13 @@
     },
     {
       "filename": "figure.pdf",
-      "sha256": "a89c4b8abb14bc1d875256d19ea2e0d52a959321672125655c0d8ae3ae2f5748",
-      "size": 13172
+      "sha256": "46b104ddd9bbb5716b4e77714c1b6a25816dcade46dda1fa57290a8bac67f4bb",
+      "size": 13178
     },
     {
       "filename": "figure.png",
-      "sha256": "1efd3639270faa989b59bd04ac5992c897f557f4a3c65f0c8c1722ef842e5423",
-      "size": 14887
+      "sha256": "2392eaa69a783b4707b52a835bf5da87d1648e7751735560d3d888894a748f8b",
+      "size": 14796
     }
   ],
   "schema": {

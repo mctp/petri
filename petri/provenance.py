@@ -10,7 +10,7 @@ An artifact is a file written with a manifest. There are two kinds:
 This module is the only writer of both locations. Reading and verification are
 here as well, which keeps the rule structural instead of a convention.
 
-Three functions are absent by design:
+Three functions and one inference are absent by design:
 
     load_preserved()  Preserved artifacts are terminal. A notebook that needs
                       another notebook's result promotes it with save_shared().
@@ -110,6 +110,65 @@ class CheckReport:
             mark = "ERROR  " if problem["severity"] == "error" else "warning"
             lines.append(f"  {mark} {problem['artifact']}: {problem['message']}")
         return "\n".join(lines)
+
+
+# --- names ------------------------------------------------------------------
+
+# A name and a filename both become path components, so both must be flat. The
+# two families take different names: a shared table is named for its file, a
+# preserved bundle for the cell that writes it.
+
+
+def _check_table_name(name: str) -> None:
+    """Validate a shared table name. It becomes shared/<name>.csv."""
+    if not name or name != name.strip():
+        raise ArtifactError(
+            f"invalid table name {name!r}: empty, or padded with whitespace"
+        )
+    if "/" in name or "\\" in name or name.startswith("."):
+        raise ArtifactError(
+            f"invalid table name {name!r}: a shared table is one flat file in "
+            "shared/, so the name cannot hold a path separator or start with a dot."
+        )
+
+
+def _check_cell_name(name: str) -> None:
+    """Validate a preserved bundle name.
+
+    A bundle is named for the cell that writes it, and check() looks that name up
+    among the notebook's cell names, which marimo requires to be Python
+    identifiers. A name that is not an identifier can never match, so the bundle
+    would fail `make check` for as long as it exists.
+    """
+    if not name.isidentifier():
+        raise ArtifactError(
+            f"invalid artifact name {name!r}: name the artifact after the cell "
+            "that writes it, so the name must be a Python identifier. check() "
+            "looks it up among the notebook's cell names."
+        )
+
+
+def _check_filename(filename: str) -> None:
+    """Validate a filename inside a bundle. A bundle is flat."""
+    if not filename or filename != filename.strip():
+        raise ArtifactError(
+            f"invalid filename {filename!r}: empty, or padded with whitespace"
+        )
+    if "/" in filename or "\\" in filename or filename.startswith("."):
+        raise ArtifactError(
+            f"invalid filename {filename!r}: a bundle is flat and only the "
+            "basename is recorded, so a nested filename could never verify."
+        )
+
+
+def _check_relpath(relpath: str | Path) -> None:
+    """Validate a path under external/. Nesting is allowed, escaping is not."""
+    path = Path(relpath)
+    if path.is_absolute() or ".." in path.parts:
+        raise ArtifactError(
+            f"invalid external path {str(relpath)!r}: it must be relative to "
+            "external/ and must not climb out of it."
+        )
 
 
 # --- identity ---------------------------------------------------------------
@@ -215,6 +274,18 @@ def _code_deps(cell_code: str) -> list[dict[str, Any]]:
             imported.update(alias.name for alias in node.names)
         elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
             imported.add(node.module)
+            # `from pkg import name` may name a submodule rather than an
+            # attribute. Recording only `pkg` hashed the package __init__ and
+            # left the submodule that did the work unhashed. Record both
+            # candidates: only what is in sys.modules is hashed, so the wrong
+            # guess costs nothing.
+            imported.update(f"{node.module}.{alias.name}" for alias in node.names)
+
+    # A package's __init__ runs when a submodule is imported, so an edit there
+    # changes the result too. Hash every ancestor package as well.
+    for name in list(imported):
+        parts = name.split(".")
+        imported.update(".".join(parts[:i]) for i in range(1, len(parts)))
 
     petri_root = (PROJECT_ROOT / "petri").resolve()
     deps: list[dict[str, Any]] = []
@@ -235,40 +306,42 @@ def _code_deps(cell_code: str) -> list[dict[str, Any]]:
 
 
 def _describe_input(path: Path) -> dict[str, Any]:
-    """Classify an input by where it lives.
+    """Classify an input by where it lives. Every kind is identified by content.
 
-    external/  Not owned by petri. Fingerprint of (size, mtime) only. This is
-               advisory: it misses a same-size edit inside one second, and it
-               reports a change after a re-download of identical content.
-    shared/    The hash comes from that table's manifest, which pins the input
-               to the published version.
+    shared/    The hash comes from that table's manifest, which pins the input to
+               the published version rather than to the bytes on disk.
+    external/  Not owned by petri, so a change is a warning rather than an error.
+               Hashed like anything else: a (size, mtime) fingerprint reported
+               drift after a re-download of identical content and after every
+               fresh clone, and load_external() reads all the bytes anyway.
     other      Hashed directly.
     """
     path = Path(path).resolve()
     if not path.exists():
         raise ArtifactError(f"declared input does not exist: {path}")
-    stat = path.stat()
     rel = _relpath(path)
 
-    if path.is_relative_to(EXTERNAL_DIR.resolve()):
-        return {
-            "kind": "external",
-            "path": rel,
-            "size": stat.st_size,
-            "mtime": int(stat.st_mtime),
-        }
     if path.is_relative_to(SHARED_DIR.resolve()):
-        entry: dict[str, Any] = {"kind": "shared", "path": rel, "name": path.stem}
         manifest = _load_manifest(path.with_suffix(".manifest.json"))
-        if manifest is not None:
-            recorded = _output_entry(manifest, path.name)
-            if recorded is not None:
-                entry["sha256"] = recorded.get("sha256")
-        return entry
+        recorded = _output_entry(manifest, path.name) if manifest else None
+        if recorded is None:
+            raise ArtifactError(
+                f"declared input {rel} is in shared/ but no manifest records it. "
+                "Publish it with save_shared() first. An input with no recorded "
+                "version pins nothing, and every consumer inherits the gap."
+            )
+        return {
+            "kind": "shared",
+            "path": rel,
+            "name": path.stem,
+            "sha256": recorded.get("sha256"),
+        }
+
+    kind = "external" if path.is_relative_to(EXTERNAL_DIR.resolve()) else "file"
     return {
-        "kind": "file",
+        "kind": kind,
         "path": rel,
-        "size": stat.st_size,
+        "size": path.stat().st_size,
         "sha256": _sha256_file(path),
     }
 
@@ -306,12 +379,17 @@ def _write_if_changed(path: Path, data: bytes) -> str:
     return digest
 
 
-def _csv_bytes(data: pl.DataFrame) -> bytes:
+def _require_frame(data: Any) -> pl.DataFrame:
     if not isinstance(data, pl.DataFrame):
         raise ArtifactError(
             f"expected a polars DataFrame, got {type(data).__name__}. "
             "Convert with pl.DataFrame(...) or r_to_pl(...) first."
         )
+    return data
+
+
+def _csv_bytes(data: pl.DataFrame) -> bytes:
+    _require_frame(data)
     return data.write_csv(None, **CSV_OPTS).encode("utf-8")
 
 
@@ -322,6 +400,26 @@ def _schema_of(data: pl.DataFrame) -> dict[str, str]:
     types. The schema here is what load_shared() feeds to schema_overrides.
     """
     return {name: str(dtype) for name, dtype in data.schema.items()}
+
+
+def _unrestorable_columns(data: pl.DataFrame) -> list[tuple[str, str]]:
+    """Columns whose dtype load_shared() would not restore. Returns (name, dtype).
+
+    A schema entry is `str(dtype)` and _schema_overrides() turns it back into a
+    bare dtype class, so a column round-trips exactly when that class built with
+    its defaults reprs the same way. Asking _schema_overrides() itself keeps the
+    two sides from drifting apart.
+    """
+    unrestorable = []
+    for column, recorded in _schema_of(data).items():
+        override = _schema_overrides({column: recorded}).get(column)
+        try:
+            restored = str(override()) if override is not None else None
+        except Exception:  # a dtype whose class cannot be built bare, e.g. Enum
+            restored = None
+        if restored != recorded:
+            unrestorable.append((column, recorded))
+    return unrestorable
 
 
 def _load_manifest(path: Path) -> dict[str, Any] | None:
@@ -344,6 +442,22 @@ def _load_manifest(path: Path) -> dict[str, Any] | None:
             f"up to {MANIFEST_VERSION}. Update the template."
         )
     return manifest
+
+
+def _read_manifest(path: Path) -> tuple[dict[str, Any] | None, str | None]:
+    """Read a manifest for a reporting caller. Never raises.
+
+    Returns (manifest, problem). A manifest petri cannot read is the kind of
+    problem check() exists to report, so check() and the list_* functions
+    describe it instead of failing on it. The write path keeps the raise.
+    """
+    try:
+        manifest = _load_manifest(path)
+    except ArtifactError as exc:
+        return None, str(exc)
+    if manifest is None:
+        return None, "unreadable manifest"
+    return manifest, None
 
 
 def _output_entry(manifest: dict[str, Any], filename: str) -> dict[str, Any] | None:
@@ -445,21 +559,16 @@ def _open_bundle(
 def _record_output(manifest: dict[str, Any], path: Path, digest: str) -> None:
     """Record an output file. Replace a previous entry for the same name.
 
-    The mtime is recorded with the hash so that verification can skip the hash
-    when nothing has touched the file. Any write updates the mtime, and a
-    mismatch starts a hash comparison instead of a failure. A fresh clone
-    verifies correctly and more slowly.
+    Size and hash both come from the content, so a manifest is a function of what
+    it describes. An earlier version also recorded an mtime, to let verification
+    skip the hash. That made every fresh clone rewrite the manifest, because a
+    rebuilt file is byte-identical but newly stamped, and shared/ ships its
+    manifests without the tables. Verification hashes instead.
     """
-    stat = path.stat()
     filename = path.name
     manifest["outputs"] = [o for o in manifest["outputs"] if o["filename"] != filename]
     manifest["outputs"].append(
-        {
-            "filename": filename,
-            "sha256": digest,
-            "size": stat.st_size,
-            "mtime": int(stat.st_mtime),
-        }
+        {"filename": filename, "sha256": digest, "size": path.stat().st_size}
     )
     manifest["outputs"].sort(key=lambda o: o["filename"])
 
@@ -489,11 +598,18 @@ def shared_path(name: str, suffix: str = ".csv") -> Path:
     """
     if not suffix.startswith("."):
         suffix = "." + suffix
+    _check_table_name(name)
+    if name.endswith(suffix):
+        raise ArtifactError(
+            f"table name {name!r} already ends in {suffix!r}; pass the name "
+            f"without it, or the path becomes {name}{suffix}."
+        )
     return SHARED_DIR / f"{name}{suffix}"
 
 
 def external_path(relpath: str | Path) -> Path:
     """Path to an unowned input under external/."""
+    _check_relpath(relpath)
     return EXTERNAL_DIR / relpath
 
 
@@ -509,14 +625,31 @@ def save_shared(
     The only writer of shared/. `inputs` is required. A shared table with no
     declared provenance cannot be verified, and every consumer inherits the gap.
 
+    Every column must survive the CSV round trip, because load_shared() rebuilds
+    dtypes from the recorded schema. A dtype carrying a time zone, a non-default
+    time unit, a decimal precision or an enum's categories is rejected here
+    rather than in the notebook that reads it.
+
     Call this outside any mo.persistent_cache block. On a cache hit marimo skips
     the block and its side effects, and the write does not happen.
     """
-    # Resolve identity and inputs before any write. If either fails after the
-    # CSV lands, shared/ holds a table with no manifest.
+    # Validate, then resolve identity and inputs, then write. Anything that can
+    # fail must fail before the CSV lands, or shared/ holds a table with no
+    # manifest.
+    _check_table_name(name)
+    _require_frame(data)
+    unrestorable = _unrestorable_columns(data)
+    if unrestorable:
+        listed = ", ".join(f"{column} ({dtype})" for column, dtype in unrestorable)
+        raise ArtifactError(
+            f"load_shared() cannot restore these columns: {listed}. shared/ is "
+            "CSV and the manifest records a dtype by name, so a time zone, a "
+            "non-default time unit, a precision or a category list is lost. Cast "
+            "the column before publishing."
+        )
+    payload = _csv_bytes(data)
     _, code = _cell_identity()
     resolved_inputs = _resolve_inputs(inputs)
-    payload = _csv_bytes(data)
 
     target = shared_path(name)
     digest = _write_if_changed(target, payload)
@@ -562,7 +695,10 @@ def preserve_figure(
     supplies one format.
 
     Each format in `formats` needs a timestamp-suppression key in _FIG_METADATA;
-    a format without one is rejected.
+    a format without one is rejected. A Path is copied byte for byte, so an
+    external renderer's timestamp is preserved: R's `pdf()` writes both a
+    CreationDate and a ModDate, and those bytes change on every run, so each run
+    rewrites the file. Prefer PNG or SVG from R.
     """
     unknown = [f for f in formats if f not in _FIG_METADATA]
     if unknown:
@@ -571,40 +707,43 @@ def preserve_figure(
             f"Known: {sorted(_FIG_METADATA)}. A format without one writes a "
             "new timestamp on every run and never verifies twice."
         )
+    _check_cell_name(name)
+    _check_filename(filename)
 
-    bundle, manifest = _open_bundle(name, title, inputs)
-    bundle.mkdir(parents=True, exist_ok=True)
-
+    # Render everything before opening the bundle. _open_bundle() empties the
+    # bundle when the cell's code has changed, so a failure after that point
+    # would destroy the deliverable it was about to replace.
+    renders: list[tuple[str, bytes]] = []
     if isinstance(fig, (str, Path)):
         src = Path(fig)
         if not src.exists():
             raise ArtifactError(f"figure file does not exist: {src}")
-        payload = src.read_bytes()
-        out_name = f"{filename}{src.suffix}"
-        digest = _write_if_changed(bundle / out_name, payload)
-        _record_output(manifest, bundle / out_name, digest)
+        renders.append((f"{filename}{src.suffix}", src.read_bytes()))
     elif hasattr(fig, "savefig"):
         import io
 
         for fmt in formats:
             buf = io.BytesIO()
             fig.savefig(
-                buf, format=fmt, metadata=_FIG_METADATA.get(fmt), bbox_inches="tight"
+                buf, format=fmt, metadata=_FIG_METADATA[fmt], bbox_inches="tight"
             )
-            payload = buf.getvalue()
-            out_name = f"{filename}.{fmt}"
-            digest = _write_if_changed(bundle / out_name, payload)
-            _record_output(manifest, bundle / out_name, digest)
+            renders.append((f"{filename}.{fmt}", buf.getvalue()))
     else:
         raise ArtifactError(
             f"expected a matplotlib Figure or a Path, got {type(fig).__name__}"
         )
+    source_payload = _csv_bytes(source_data)
+    source_schema = _schema_of(source_data)
 
-    payload = _csv_bytes(source_data)
+    bundle, manifest = _open_bundle(name, title, inputs)
+    for out_name, payload in renders:
+        digest = _write_if_changed(bundle / out_name, payload)
+        _record_output(manifest, bundle / out_name, digest)
+
     data_name = f"{filename}-source.csv"
-    digest = _write_if_changed(bundle / data_name, payload)
+    digest = _write_if_changed(bundle / data_name, source_payload)
     _record_output(manifest, bundle / data_name, digest)
-    manifest["schema"] = _schema_of(source_data)
+    manifest["schema"] = source_schema
 
     _write_manifest(bundle / "manifest.json", manifest)
     return bundle
@@ -622,12 +761,17 @@ def preserve_table(
 
     Writes `<filename>.csv`. Pass a distinct `filename` for each table in a cell.
     """
-    bundle, manifest = _open_bundle(name, title, inputs)
+    _check_cell_name(name)
+    _check_filename(filename)
+    # Serialize before opening the bundle; see the note in preserve_figure().
     payload = _csv_bytes(data)
+    schema = _schema_of(data)
+
+    bundle, manifest = _open_bundle(name, title, inputs)
     out_name = f"{filename}.csv"
     digest = _write_if_changed(bundle / out_name, payload)
     _record_output(manifest, bundle / out_name, digest)
-    manifest["schema"] = _schema_of(data)
+    manifest["schema"] = schema
     _write_manifest(bundle / "manifest.json", manifest)
     return bundle
 
@@ -650,6 +794,7 @@ def preserve_file(
         preserve_file(json.dumps(params, indent=2), "fig2b", filename="params.json")
         preserve_file(model_path, "fig2b")
     """
+    _check_cell_name(name)
     if isinstance(src, (bytes, str)):
         if filename is None:
             raise ArtifactError(
@@ -663,6 +808,7 @@ def preserve_file(
             raise ArtifactError(f"file does not exist: {path}")
         payload = path.read_bytes()
         filename = filename or path.name
+    _check_filename(filename)
 
     bundle, manifest = _open_bundle(name, title, inputs)
 
@@ -674,9 +820,9 @@ def preserve_file(
 
 # --- reading ----------------------------------------------------------------
 
-# A container dtype needs an inner type. A bare pl.List is not a usable
-# override, so skip it and let Polars infer. The content hash guarantees
-# correctness; the schema only restores in-memory types.
+# A container dtype needs an inner type, and a bare pl.List is not a usable
+# override. Skipping it here is what makes _unrestorable_columns() reject such a
+# column, so save_shared() never publishes one. CSV holds no nested data anyway.
 _CONTAINER_DTYPES = frozenset({"List", "Struct", "Array"})
 
 
@@ -692,23 +838,17 @@ def _schema_overrides(schema: dict[str, str] | None) -> dict[str, Any]:
     return overrides
 
 
-def _verify_file(path: Path, entry: dict[str, Any], strict: bool = False) -> str | None:
+def _verify_file(path: Path, entry: dict[str, Any]) -> str | None:
     """Return a problem description, or None when the file matches its entry.
 
-    Size is checked first (a cheap reject), then mtime as a fast path, then the
-    hash. Only `strict` forces a hash when mtime already matches.
+    Size is a cheap reject before the hash. There is no mtime fast path: an mtime
+    says nothing about content, and recording one made every clone rewrite the
+    manifest.
     """
     if not path.exists():
         return f"{entry['filename']}: missing"
-    stat = path.stat()
-    if stat.st_size != entry.get("size"):
+    if path.stat().st_size != entry.get("size"):
         return f"{entry['filename']}: size changed since it was written"
-    if (
-        not strict
-        and entry.get("mtime") is not None
-        and int(stat.st_mtime) == entry["mtime"]
-    ):
-        return None
     if _sha256_file(path) != entry.get("sha256"):
         return f"{entry['filename']}: content changed since it was written"
     return None
@@ -768,14 +908,20 @@ def load_external(relpath: str | Path) -> pl.DataFrame:
     )
 
 
-def preserved_path(notebook: str, cell: str, filename: str = "figure.png") -> Path:
+def preserved_path(notebook: str, cell: str, filename: str) -> Path:
     """Path to a file inside a preserved bundle. Raises if it does not exist.
+
+    `filename` has no default. A bundle's files are named by the calls that wrote
+    them, and a figure built with formats=("svg",) has no PNG at all; ask
+    list_preserved() which files a bundle holds.
 
     Use it to display, open, or view the file. There is no loader that reads
     artifact data into a notebook namespace. That absence keeps deliverables
     terminal.
     """
-    path = PRESERVED_DIR / notebook / cell / filename
+    _check_cell_name(cell)
+    _check_filename(filename)
+    path = PRESERVED_DIR / Path(notebook).stem / cell / filename
     if not path.exists():
         raise ArtifactError(f"no such artifact file: {_relpath(path)}")
     return path
@@ -789,9 +935,22 @@ def list_shared() -> list[dict[str, Any]]:
     """
     entries = []
     for manifest_path in sorted(SHARED_DIR.glob("*.manifest.json")):
-        manifest = _load_manifest(manifest_path)
+        name = manifest_path.name.removesuffix(".manifest.json")
+        manifest, problem = _read_manifest(manifest_path)
         if manifest is None:
+            entries.append(
+                {
+                    "name": name,
+                    "notebook": None,
+                    "description": None,
+                    "rows": None,
+                    "path": None,
+                    "created": None,
+                    "problems": [{"severity": "error", "message": problem}],
+                }
+            )
             continue
+        outputs = manifest.get("outputs") or []
         entries.append(
             {
                 "name": manifest.get("id"),
@@ -799,7 +958,7 @@ def list_shared() -> list[dict[str, Any]]:
                 "description": manifest.get("title"),
                 "rows": manifest.get("rows"),
                 "path": _relpath(SHARED_DIR / outputs[0]["filename"])
-                if (outputs := manifest.get("outputs"))
+                if outputs
                 else None,
                 "created": manifest.get("created"),
                 "problems": _verify_manifest(manifest, SHARED_DIR),
@@ -809,20 +968,35 @@ def list_shared() -> list[dict[str, Any]]:
 
 
 def list_preserved(notebook: str | None = None) -> list[dict[str, Any]]:
-    """Summarise preserved bundles, newest manifests last.
+    """Summarise preserved bundles, ordered by path.
 
     Each entry carries `problems`, so a caller can skip a figure whose inputs
-    have changed.
+    have changed, and `files`, because a bundle's filenames come from the calls
+    that wrote it.
+
+    `notebook` takes either form the API reports: the notebook path in an entry's
+    `notebook` field, or the bare stem that names the directory.
     """
-    root = PRESERVED_DIR / notebook if notebook else PRESERVED_DIR
+    root = PRESERVED_DIR / Path(notebook).stem if notebook else PRESERVED_DIR
     if not root.exists():
         return []
     entries = []
     for manifest_path in sorted(root.rglob("manifest.json")):
-        manifest = _load_manifest(manifest_path)
-        if manifest is None:
-            continue
         base = manifest_path.parent
+        manifest, problem = _read_manifest(manifest_path)
+        if manifest is None:
+            entries.append(
+                {
+                    "id": base.name,
+                    "notebook": None,
+                    "title": None,
+                    "path": _relpath(base),
+                    "files": [],
+                    "created": None,
+                    "problems": [{"severity": "error", "message": problem}],
+                }
+            )
+            continue
         entries.append(
             {
                 "id": manifest.get("id"),
@@ -868,9 +1042,7 @@ def _notebook_cells(path: Path) -> list[tuple[str, str]]:
     ]
 
 
-def _verify_manifest(
-    manifest: dict[str, Any], base: Path, strict: bool = False
-) -> list[dict[str, str]]:
+def _verify_manifest(manifest: dict[str, Any], base: Path) -> list[dict[str, str]]:
     """Verify one manifest's outputs and inputs. Returns problem dicts."""
     problems: list[dict[str, str]] = []
 
@@ -878,7 +1050,7 @@ def _verify_manifest(
         problems.append({"severity": severity, "message": message})
 
     for entry in manifest.get("outputs", []):
-        problem = _verify_file(base / entry["filename"], entry, strict)
+        problem = _verify_file(base / entry["filename"], entry)
         if problem:
             add("error", problem)
 
@@ -888,16 +1060,10 @@ def _verify_manifest(
             add("error", f"input missing: {entry['path']}")
             continue
         kind = entry.get("kind")
-        if kind == "external":
-            stat = path.stat()
-            if stat.st_size != entry.get("size") or int(stat.st_mtime) != entry.get(
-                "mtime"
-            ):
-                # Advisory by design: external is unowned, and size+mtime fires
-                # on a benign re-download as readily as on a real edit.
-                add("warning", f"external input drifted: {entry['path']}")
-        elif kind == "shared":
-            current = _load_manifest(path.with_suffix(".manifest.json"))
+        if kind == "shared":
+            # Compared against the published version, not the bytes on disk. The
+            # shared table's own manifest is what verifies those.
+            current, _ = _read_manifest(path.with_suffix(".manifest.json"))
             recorded = _output_entry(current, path.name) if current else None
             current_sha = recorded.get("sha256") if recorded else None
             if current_sha != entry.get("sha256"):
@@ -906,7 +1072,12 @@ def _verify_manifest(
                     f"built from an older version of {entry['path']}; re-run this cell",
                 )
         elif entry.get("sha256") and _sha256_file(path) != entry["sha256"]:
-            add("error", f"input changed: {entry['path']}")
+            if kind == "external":
+                # A warning, not an error: external/ is unowned, so petri reports
+                # the change and leaves the decision to rebuild to you.
+                add("warning", f"external input changed: {entry['path']}")
+            else:
+                add("error", f"input changed: {entry['path']}")
 
     # Transformations in processing/ are outside the cell, so the cell code
     # hash does not cover them. This is an error, not a warning: if the function
@@ -924,20 +1095,79 @@ def _verify_manifest(
     return problems
 
 
-def check(strict: bool = False) -> CheckReport:
+def _unlisted_files() -> list[dict[str, str]]:
+    """Find files in shared/ and preserved/ that no manifest lists.
+
+    An artifact is a file plus a manifest. Verifying manifests alone leaves the
+    other direction unchecked, so a hand-copied table or a figure left by an
+    interrupted run passed as a clean tree. Nothing records what produced such a
+    file, which is the whole claim these two directories make.
+    """
+    problems: list[dict[str, str]] = []
+
+    def add(path: Path, message: str) -> None:
+        problems.append(
+            {"artifact": _relpath(path), "severity": "error", "message": message}
+        )
+
+    listed: set[str] = set()
+    for manifest_path in SHARED_DIR.glob("*.manifest.json"):
+        manifest, _ = _read_manifest(manifest_path)
+        if manifest is not None:
+            listed.update(o["filename"] for o in manifest.get("outputs", []))
+    for path in sorted(SHARED_DIR.rglob("*")):
+        if not path.is_file() or path.name == ".gitkeep":
+            continue
+        if path.name.endswith(".manifest.json"):
+            continue
+        if path.parent == SHARED_DIR and path.name in listed:
+            continue
+        add(path, "no manifest records this file; save_shared() did not write it")
+
+    directories = [PRESERVED_DIR, *(p for p in PRESERVED_DIR.rglob("*") if p.is_dir())]
+    for directory in sorted(directories):
+        if not directory.exists():
+            continue
+        files = [
+            p
+            for p in sorted(directory.iterdir())
+            if p.is_file() and p.name != ".gitkeep"
+        ]
+        if not files:
+            continue
+        manifest_path = directory / "manifest.json"
+        if not manifest_path.exists():
+            for path in files:
+                add(path, "this directory holds files but no manifest.json")
+            continue
+        manifest, _ = _read_manifest(manifest_path)
+        if manifest is None:
+            continue  # the main pass reports the unreadable manifest
+        names = {"manifest.json"} | {o["filename"] for o in manifest.get("outputs", [])}
+        for path in files:
+            if path.name not in names:
+                add(
+                    path, "no manifest records this file; preserve_*() did not write it"
+                )
+    return problems
+
+
+def check() -> CheckReport:
     """Verify every manifest under shared/ and preserved/.
 
-    Covers three kinds of drift:
+    Covers four kinds of drift:
 
-      content   an output or input no longer matches the hash recorded for it
-      staleness an artifact pinned to a superseded version of a shared table
-      identity  a preserved bundle whose producing cell was renamed, deleted,
-                or edited since the artifact was written
+      content     an output or input no longer matches the hash recorded for it
+      staleness   an artifact pinned to a superseded version of a shared table
+      identity    a preserved bundle whose producing cell was renamed, deleted,
+                  or edited since the artifact was written
+      provenance  a file in either directory that no manifest records
 
     The identity pass covers the name argument on preserve_*(). Rename the cell
     without renaming the artifact and this check fails.
 
-    `strict` hashes every file, even when the size and mtime match.
+    Every hash is recomputed. Reporting problems is the job, so a manifest this
+    petri cannot read is reported, not raised.
     """
     problems: list[dict[str, str]] = []
     checked = 0
@@ -953,33 +1183,41 @@ def check(strict: bool = False) -> CheckReport:
             problems.append({"artifact": artifact, **problem})
 
     for manifest_path in sorted(SHARED_DIR.glob("*.manifest.json")):
-        manifest = _load_manifest(manifest_path)
+        manifest, problem = _read_manifest(manifest_path)
         if manifest is None:
             problems.append(
                 {
                     "artifact": manifest_path.name,
                     "severity": "error",
-                    "message": "unreadable manifest",
+                    "message": problem or "unreadable manifest",
                 }
             )
             continue
         checked += 1
-        collect(
-            f"shared/{manifest.get('id')}",
-            _verify_manifest(manifest, SHARED_DIR, strict),
-        )
+        label = f"shared/{manifest.get('id')}"
+        collect(label, _verify_manifest(manifest, SHARED_DIR))
         # A shared table has no cell name to anchor to: save_shared() takes the
         # table name. The only identity check available is whether some cell in
-        # the producer notebook still carries the code that wrote it. This is a
-        # warning. The contents are still verified; only the path back to the
-        # producer is missing.
+        # the producer notebook still carries the code that wrote it. Both
+        # outcomes are warnings. The contents are still verified; only the path
+        # back to the producer is missing.
         notebook = manifest.get("notebook")
         cells = cells_for(notebook) if notebook else []
-        if cells and manifest.get("cell_code_sha256") not in {
+        if not cells:
+            collect(
+                label,
+                [
+                    {
+                        "severity": "warning",
+                        "message": f"cannot read cells of {notebook}",
+                    }
+                ],
+            )
+        elif manifest.get("cell_code_sha256") not in {
             _code_hash(code) for _, code in cells
         }:
             collect(
-                f"shared/{manifest.get('id')}",
+                label,
                 [
                     {
                         "severity": "warning",
@@ -992,13 +1230,13 @@ def check(strict: bool = False) -> CheckReport:
             )
 
     for manifest_path in sorted(PRESERVED_DIR.rglob("manifest.json")):
-        manifest = _load_manifest(manifest_path)
+        manifest, problem = _read_manifest(manifest_path)
         if manifest is None:
             problems.append(
                 {
                     "artifact": _relpath(manifest_path),
                     "severity": "error",
-                    "message": "unreadable manifest",
+                    "message": problem or "unreadable manifest",
                 }
             )
             continue
@@ -1006,7 +1244,7 @@ def check(strict: bool = False) -> CheckReport:
         base = manifest_path.parent
         artifact_id = manifest.get("id") or base.name
         label = f"{base.parent.name}/{artifact_id}"
-        collect(label, _verify_manifest(manifest, base, strict))
+        collect(label, _verify_manifest(manifest, base))
 
         notebook = manifest.get("notebook")
         cells = cells_for(notebook) if notebook else []
@@ -1050,6 +1288,7 @@ def check(strict: bool = False) -> CheckReport:
                     ],
                 )
 
+    problems.extend(_unlisted_files())
     return CheckReport(problems=problems, checked=checked)
 
 

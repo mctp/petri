@@ -10,7 +10,7 @@ export PYTHONPATH := $(CURDIR)
 # under notebooks/ is an analysis notebook and is not run by `make shared`.
 PRODUCERS := $(sort $(wildcard notebooks/[0-9]*.py))
 
-.PHONY: help setup nb shared test lint fmt check check-strict clean r-restore r-snapshot r-status r-install
+.PHONY: help setup nb shared test lint fmt check clean r-restore r-snapshot r-status r-install
 
 help: ## Show available targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -21,8 +21,11 @@ setup: ## Create .venv and R library, install git hooks
 	uv run pre-commit install
 	$(MAKE) r-restore
 
+# .env reaches the notebook kernel through marimo's own `runtime.dotenv`, but not
+# the server process, which is what resolves the AI provider key. Load it here so
+# GEMINI_API_KEY works from .env instead of being typed into tracked config.
 nb: ## Start marimo on notebooks/ (discoverable by the marimo-pair skill)
-	uv run marimo edit notebooks/ --no-token
+	set -a; [ -f .env ] && . ./.env; set +a; PYTHONPATH="$(CURDIR)" uv run marimo edit notebooks/ --no-token
 
 lint: ## Lint notebooks and verify formatting
 	uv run ruff check .
@@ -43,11 +46,10 @@ shared: ## Rebuild shared/ by running producer notebooks (notebooks/NN_*.py) in 
 test: ## Run the test suite (contracts plus the make shared/check write path)
 	uv run pytest tests/ -q
 
+# Needs the tables present, so run `make shared` first on a fresh clone:
+# shared/ ships its manifests, not its CSVs.
 check: ## Verify artifact and shared-table provenance (exits non-zero on errors)
 	@uv run python -c "import sys, petri; r = petri.check(); print(r); sys.exit(0 if r.ok else 1)"
-
-check-strict: ## As `check`, but hash every file instead of trusting size+mtime
-	@uv run python -c "import sys, petri; r = petri.check(strict=True); print(r); sys.exit(0 if r.ok else 1)"
 
 fmt: ## Auto-fix lint issues and format
 	uv run ruff check --fix .

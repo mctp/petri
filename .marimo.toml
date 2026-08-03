@@ -7,7 +7,9 @@ rules = ""
 [ai.custom_providers]
 
 [ai.google]
-api_key = "AQ.Ab8RN6KAD5R9m0uRVcDO2BzhoHP8hzOyGn8eCtRVzXMmdj-zHA"
+# No api_key here. This file is tracked for the runtime settings below, so a key
+# written into it is a key committed. marimo falls back to GEMINI_API_KEY or
+# GOOGLE_API_KEY from the environment; `make nb` loads .env, which is ignored.
 
 [ai.models]
 chat_model = "google/gemini-3.1-flash-lite"

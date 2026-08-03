@@ -40,3 +40,15 @@ repos:
     rev: 0.9.9
     hooks:
       - id: uv-lock
+
+  # detect-private-key matches PEM and SSH headers only, so an API token walks
+  # straight past it. A Gemini key reached origin/main this way: marimo writes
+  # .marimo.toml whenever its AI settings change, and that file is tracked for
+  # the runtime settings. Keys belong in .env, which git ignores.
+  - repo: local
+    hooks:
+      - id: no-api-keys
+        name: no API keys in tracked files
+        language: pygrep
+        types: [text]
+        entry: '(?i)(api[_-]?key|secret|passwd|password|token)[ \t]*[=:][ \t]*["''][A-Za-z0-9._\-]{16,}|AQ\.[A-Za-z0-9_\-]{20,}|AIza[0-9A-Za-z_\-]{30,}|sk-[A-Za-z0-9]{32,}|gh[pousr]_[A-Za-z0-9]{30,}'

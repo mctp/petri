@@ -695,8 +695,8 @@ def pattern9_batch_table(measurements, mo, pl, preserve_file, preserve_table):
 def _(check, list_preserved, mo):
     # Pattern 10: verification. This is what `make check` runs.
     #
-    # check() reports content, staleness, and identity drift. list_preserved()
-    # reports problems per bundle.
+    # check() reports content, staleness, identity and provenance drift.
+    # list_preserved() reports problems per bundle.
     _report = check()
     _listing = list_preserved()
 
@@ -706,8 +706,9 @@ def _(check, list_preserved, mo):
             mo.md(f"```\n{_report}\n```"),
             mo.md(
                 "An error makes `make check` exit non-zero. A warning does not. "
-                "External drift is a warning because petri does not own "
-                "`external/`, and size and mtime change after a re-download."
+                "A changed `external/` input is a warning because petri does not "
+                "own those files: they can be re-supplied from outside. A file in "
+                "`shared/` or `preserved/` that no manifest records is an error."
             ),
             mo.ui.table(
                 [

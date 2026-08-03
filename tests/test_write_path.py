@@ -62,3 +62,23 @@ def test_second_run_rewrites_nothing():
     after = {p: p.stat().st_mtime_ns for p in SHARED_DIR.glob("*") if p.is_file()}
     changed = [str(p) for p in before if before[p] != after.get(p)]
     assert not changed, f"rewritten on an unchanged run: {changed}"
+
+
+@pytest.mark.slow
+def test_rebuilding_from_a_clone_rewrites_no_manifest():
+    """The state every collaborator starts in: manifests committed, tables not.
+
+    Recording an mtime made this rewrite every manifest, because a rebuilt table
+    is byte-identical but newly stamped. The committed record has to be a
+    function of the content, or it conflicts in git for no reason.
+    """
+    assert _make("shared").returncode == 0
+    manifests = {p: p.read_bytes() for p in SHARED_DIR.glob("*.manifest.json")}
+    assert manifests, "no shared manifests to compare"
+
+    for table in SHARED_DIR.glob("*.csv"):
+        table.unlink()  # gitignored, so a clone does not have them
+    assert _make("shared").returncode == 0
+
+    rewritten = [p.name for p, before in manifests.items() if p.read_bytes() != before]
+    assert not rewritten, f"a byte-identical rebuild rewrote: {rewritten}"

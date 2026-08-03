@@ -105,9 +105,8 @@ A notebook reads `shared/`. A producer notebook also reads `external/`. Petri
 versions `shared/`, so every notebook input is verifiable.
 
 `external/` is outside the boundary. Petri does not own those files and does not
-preserve them. It records a fingerprint of `(path, size, mtime)` instead. The
-fingerprint is advisory: it misses an edit that keeps the same size within one
-second, and it reports a change after a re-download of identical content.
+preserve them. It records `(path, size, sha256)` and reports a change as a
+warning, because the file can be re-supplied from outside without petri.
 
 Petri therefore guarantees reproducibility from `shared/` onward. External
 inputs are recorded, not guaranteed.
@@ -127,6 +126,11 @@ producing cell is a `check` error.
 Cell code is hashed after whitespace at the edges is removed. The kernel reports
 `cell.code` with a trailing newline; the on-disk form has none. Hashing the raw
 text marks every artifact stale as soon as it is written.
+
+`check()` also walks the other direction, from the files to the manifests. An
+artifact is a file plus a manifest, so a file that no manifest records — a table
+copied in by hand, a figure left by an interrupted run — is an error. Verifying
+manifests alone let such a tree report clean.
 
 ### Producer notebooks
 
@@ -165,6 +169,12 @@ it stale and leaves the rest unchanged.
 site-packages. Hashing the template would mark every artifact stale on a
 template update. Dependency versions belong in `tool` and the lockfiles.
 
+Resolution takes both readings of `from pkg import name`, since the name may be
+a submodule rather than an attribute, and it hashes each ancestor package as
+well, because a package `__init__` runs when a submodule is imported. What it
+does not cover is a module imported by another module: `code_deps` records what
+the cell imports, not the whole transitive closure.
+
 ### Manifests
 
 Each artifact has one JSON manifest: `shared/<name>.manifest.json`, or
@@ -179,29 +189,56 @@ An input's fingerprint changes with its content, so a dedup by equality would
 leave two entries for one file and a claim of provenance from a version that no
 longer exists.
 
+Every field a manifest records about a file comes from that file's content: a
+size and a SHA-256, for outputs and for inputs alike. Nothing records an mtime.
+An earlier version did, as a fast path that let verification skip the hash, and
+because `shared/` ships its manifests without its tables, every collaborator's
+first `make shared` rewrote every manifest with a new mtime and identical hashes.
+A record that changes when its subject does not is not a record.
+
+An input under `shared/` is pinned to the version its manifest published, not to
+the bytes on disk; that table's own manifest is what verifies those. An input
+under `external/` is hashed like any other, but a change there is a warning
+rather than an error, because those files are unowned and can be re-supplied
+without petri.
+
 ### Writes
 
 Writes are idempotent. Petri does not rewrite unchanged content. A preserved
 cell re-runs whenever its dependencies change, and rewriting identical bytes
-would change mtimes and produce a git diff on every iteration.
+would produce a git diff on every iteration.
 
 matplotlib stamps a timestamp into every format, so petri strips it: `Software`
 for PNG, `CreationDate` for PDF, `Date` for SVG. A format with no known key is
 rejected, because it would write new bytes on every run and never verify twice.
+Passing a `Path` instead of a figure copies that file byte for byte, so an
+external renderer's timestamp survives — R's `pdf()` writes a `CreationDate` and
+a `ModDate` — and each run rewrites the file. Prefer PNG or SVG from R.
 
-Arguments are validated first, then identity and inputs resolve, then petri
-writes. A failed guard therefore cannot leave a table in `shared/` without a
-manifest, and a bad argument fails without a kernel.
+Names are validated on the way in. A shared table name becomes a filename, so it
+must be one flat name. A preserved bundle name must be a Python identifier,
+because `check()` looks it up among the notebook's cell names and a name that is
+not an identifier could never match. A filename inside a bundle must be flat too,
+since only the basename is recorded.
 
-Verification runs in three steps: size, mtime, then hash. `make check-strict`
-forces the hash. An mtime mismatch starts a hash comparison; it is not a
-failure. A fresh clone verifies correctly and more slowly.
+Payloads are serialized, then identity and inputs resolve, then petri writes.
+Order carries weight here: opening a bundle empties it when the cell's code has
+changed, so a payload rejected after that point would destroy the deliverable it
+was about to replace.
+
+Verification is size, then hash, on every file. There is no fast path to skip.
 
 ### CSV
 
 `shared/` and `preserve_table()` write CSV, which agents and people can read
 with `grep`. CSV carries no dtypes, so petri records the Polars schema in the
 manifest and applies it through `schema_overrides` on read.
+
+That record holds a dtype by name, so `save_shared()` accepts only columns whose
+dtype is fully described by its name. A time zone, a time unit other than the
+default, a decimal precision and an enum's categories are all lost, and nested
+data does not fit in CSV at all. Such a column is rejected at publication, not in
+the notebook that reads it back.
 
 Floats use the Polars defaults. `float_precision` writes `1e-300` as
 `0.000000000000`, which destroys p-values. Petri pins only the ambiguous

@@ -57,3 +57,7 @@ docstring-code-format = true
 
 [tool.pytest.ini_options]
 markers = ["slow: runs the real make targets in a subprocess"]
+# This is a workspace, not an installable package, so `import petri` needs the
+# repo root on sys.path. The Makefile exports PYTHONPATH for notebook runs; this
+# line is what makes a bare `uv run pytest tests/` work too.
+pythonpath = ["."]
