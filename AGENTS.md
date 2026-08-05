@@ -63,14 +63,22 @@ When marimo is running:
 
 ### Opening a notebook
 
-1. `make nb` starts the server (`marimo edit notebooks/ --no-token`).
+**The port belongs to the directory, not to marimo's default.** `make nb` derives a
+port from the project root so two petri projects on one machine never collide, so
+2718 is only this project's port by coincidence. Ask, never assume:
+
+```bash
+URL=$(make -s nb-url)        # e.g. http://127.0.0.1:2754
+```
+
+1. `make nb` starts the server, or prints the URL if one is already running here.
 2. Open it in the browser. The server root is `notebooks/`, so omit that prefix:
-   `open "http://localhost:2718/?file=<name>.py"`.
+   `open "$URL/?file=<name>.py"`.
 3. Find the session id, one per open notebook:
-   `curl -s http://localhost:2718/api/sessions | jq -r 'to_entries[] | "\(.key)  \(.value.filename)"'`
+   `curl -s "$URL/api/sessions" | jq -r 'to_entries[] | "\(.key)  \(.value.filename)"'`
 4. Run code against that kernel, passing the session id:
    ```bash
-   bash petri/skills/marimo-pair/scripts/execute-code.sh --url http://localhost:2718 --session <id> -c "print('connected')"
+   bash petri/skills/marimo-pair/scripts/execute-code.sh --url "$URL" --session <id> -c "print('connected')"
    ```
 
 With one notebook open you can omit `--session`; the script selects it.
@@ -189,7 +197,7 @@ No file I/O, no path constants, no marimo imports. A cell loads, calls a
 function, and preserves. An edit here marks the artifacts built from it stale.
 
 `petri/` holds the template's own machinery — the API source, plus `tests/`,
-`docs/`, `skills/`, `init.py` and `examples/`. **New machinery goes there, not at
+`docs/`, `skills/`, `init.py`, `server.py` and `examples/`. **New machinery goes there, not at
 the root.** The skills are canonical at `petri/skills/`; `.pi/skills` and
 `.claude/skills` are symlinks to it, so edit the real directory and never copy a
 skill between the two.
@@ -211,10 +219,15 @@ loops, or interactive prompts: they block the kernel.
 
 If `execute-code.sh` hangs or times out:
 
-1. `pkill -9 -f "marimo edit"`
-2. `rm -f ~/.local/state/marimo/servers/*.json`
-3. `nohup make nb > marimo.log 2>&1 &`
-4. Ask the user to open [http://localhost:2718](http://localhost:2718).
+1. `make nb-status` — is the server for *this* project up, hung, or absent?
+2. `make nb-stop` then `nohup make nb > marimo.log 2>&1 &`, or just `make nb`,
+   which stops a hung server here and starts a new one on the same port.
+3. `make nb-url`, and ask the user to open it.
+
+**Never `pkill -f "marimo edit"`, and never delete
+`~/.local/state/marimo/servers/*.json`.** Both are machine-wide: one machine runs
+many petri projects, and those two commands stop every one of them. `make nb-stop`
+signals only the server whose working directory is this project.
 
 ---
 
@@ -225,7 +238,7 @@ itself. The ones you need without looking:
 
 | Command | Purpose |
 |---|---|
-| `make nb` | Start the marimo server |
+| `make nb` | Start the marimo server for this project, or report the one already running. `nb-url`, `nb-status`, `nb-stop` alongside it |
 | `make init [minimal\|full]` | Copy examples from `petri/examples/` into the user's empty folders. Never overwrites without `--force` |
 | `make check` | Verify artifact provenance; non-zero on drift. Reports zero artifacts on a project with no data, which is not a failure |
 | `make test` | Contracts plus the write path. The write-path tests skip unless `make init full` has run |

@@ -11,7 +11,7 @@ export PYTHONPATH := $(CURDIR)
 INIT_SETS := minimal full
 INIT_ARGS := $(filter $(INIT_SETS),$(MAKECMDGOALS))
 
-.PHONY: help setup init $(INIT_SETS) nb test lint fmt check clean r-restore r-snapshot r-status r-install
+.PHONY: help setup init $(INIT_SETS) nb nb-url nb-status nb-stop test lint fmt check clean r-restore r-snapshot r-status r-install
 
 help: ## Show available targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -37,8 +37,21 @@ $(INIT_SETS):
 # .env reaches the notebook kernel through marimo's own `runtime.dotenv`, but not
 # the server process, which is what resolves the AI provider key. Load it here so
 # GEMINI_API_KEY works from .env instead of being typed into tracked config.
-nb: ## Start marimo on notebooks/ (discoverable by the marimo-pair skill)
-	set -a; [ -f .env ] && . ./.env; set +a; PYTHONPATH="$(CURDIR)" uv run marimo edit notebooks/ --no-token
+#
+# petri.server picks a port from this directory and execs marimo, so two projects
+# on one machine never share a port and never stop each other's server. Running
+# this when a server is already up here prints its URL and does nothing else.
+nb: ## Start marimo on notebooks/, or print the URL if it is already running
+	set -a; [ -f .env ] && . ./.env; set +a; PYTHONPATH="$(CURDIR)" uv run python -m petri.server
+
+nb-url: ## Print this project's marimo URL
+	@uv run python -m petri.server --url
+
+nb-status: ## Report whether marimo is running for this project
+	@uv run python -m petri.server --status || true
+
+nb-stop: ## Stop this project's marimo server, leaving other projects alone
+	@uv run python -m petri.server --stop
 
 lint: ## Lint notebooks and verify formatting
 	uv run ruff check .

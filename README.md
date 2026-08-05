@@ -19,7 +19,7 @@ works on are the same object.
 git clone <this-template> my-project && cd my-project
 make setup          # install dependencies and git hooks
 make init full      # copy the examples in (or `make init` for just the notebooks)
-make nb             # start marimo on notebooks/
+make nb             # start marimo on notebooks/ (port derived from this directory)
 ```
 
 Start `pi` in the project root in a second terminal and ask it to pair on the
@@ -57,6 +57,7 @@ petri/         paths, provenance, R interop — the API your notebooks import
   docs/        architecture, renv, rpy2
   skills/      marimo-pair, petri-analysis, petri-init — symlinked into .pi/ and .claude/
   init.py      the `make init` sets
+  server.py    the per-directory marimo port, behind `make nb`
   r-restore.R  wave-by-wave renv restore, run by `make r-restore`
 ```
 
@@ -108,10 +109,16 @@ See [petri/docs/architecture.md](petri/docs/architecture.md) for the design and
 
 ```bash
 make init full  # copy the examples into notebooks/, scripts/, data/
+make nb         # start marimo, or print the URL if it is already running here
+make nb-stop    # stop this project's server, leaving other projects alone
 make check      # verify artifacts against their manifests
 make test       # contracts and the write path
 make lint       # ruff check and format
 ```
+
+Each project gets its own marimo port, derived from its directory, so several petri
+checkouts run side by side and `make nb-stop` never touches another one. `make
+nb-url` prints this project's URL rather than assuming marimo's default.
 
 ## Dependencies
 

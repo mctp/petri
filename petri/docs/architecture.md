@@ -57,7 +57,7 @@ graph.
 ```mermaid
 graph LR
     Agent["pi / Claude Code"] -->|"execute-code.sh, cm"| Kernel["marimo kernel<br/>(source of truth)"]
-    User["browser :2718"] --> Kernel
+    User["browser :PORT"] --> Kernel
     Kernel --> Ext["data/external/"] --> Proc["scripts/"] --> Shared["data/shared/"] --> Pres["data/preserved/"]
 ```
 
