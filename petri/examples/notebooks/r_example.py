@@ -11,9 +11,9 @@ def _():
     import polars as pl
 
     from petri import CACHE_DIR, PROJECT_ROOT
-    from petri.r_bridge import pl_to_r, r_eval, r_set
+    from petri.r_bridge import pl_to_r, r_eval, r_png, r_set
 
-    return CACHE_DIR, PROJECT_ROOT, mo, np, pl, pl_to_r, r_eval, r_set
+    return CACHE_DIR, PROJECT_ROOT, mo, np, pl, pl_to_r, r_eval, r_png, r_set
 
 
 @app.cell(hide_code=True)
@@ -75,7 +75,7 @@ def _(np, pl, pl_to_r):
 
 
 @app.cell(hide_code=True)
-def _(CACHE_DIR, df, mo, r_eval, r_set):
+def _(CACHE_DIR, df, mo, r_eval, r_png, r_set):
     _ = df  # marimo DAG dependency
     plot_path = CACHE_DIR / "r_example_ggpubr.png"
 
@@ -122,18 +122,8 @@ def _(CACHE_DIR, df, mo, r_eval, r_set):
     )
     v3 = mo.Html(str(svg_str[0]))
 
-    # Method 4: Direct rpy2 Graphics Capture via grdevices
-    import rpy2.robjects as ro
-
-    # marimo runs each cell in a thread and rpy2 holds its conversion rules in a
-    # ContextVar, so direct rpy2 calls that bypass r_bridge must enter the
-    # conversion context themselves.
-    with ro.default_converter.context():
-        from rpy2.robjects.lib import grdevices
-
-        with grdevices.render_to_bytesio(grdevices.png, width=500, height=400) as bio:
-            r_eval("print(p)")
-    v4 = mo.image(bio.getvalue(), width=500)
+    # Method 4: grdevices Capture via r_bridge
+    v4 = mo.image(r_png("print(p)", width=500, height=400), width=500)
 
     mo.ui.tabs(
         {
@@ -168,8 +158,12 @@ def _(CACHE_DIR, df, mo, r_eval, r_set):
             "4. rpy2 grdevices Capture": mo.vstack(
                 [
                     mo.md(
-                        "**Method 4: Direct in-memory capture via `rpy2.robjects.lib.grdevices`**\n\n"
-                        "Uses Python context manager (`render_to_bytesio`) to capture R plot output."
+                        "**Method 4: In-memory `grdevices` capture via `r_png()`**\n\n"
+                        "`r_bridge.r_png()` wraps `rpy2.robjects.lib.grdevices` and "
+                        "returns PNG bytes. Calling `grdevices` directly from a cell "
+                        "raises `NotImplementedError: Conversion rules ... appear to "
+                        "be missing`, because rpy2 keeps those rules in a "
+                        "`ContextVar` that marimo's cell thread does not carry."
                     ),
                     v4,
                 ]

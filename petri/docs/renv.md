@@ -76,7 +76,7 @@ library path, sweeping the base and recommended packages out of renv's sandbox
 imported:
 
 ```python
-from petri.r_bridge import pl_to_r, r_eval, r_set, r_to_pl
+from petri.r_bridge import pl_to_r, r_eval, r_png, r_set, r_to_pl
 ```
 
 When `r_bridge` is imported, it sets the working directory to `PROJECT_ROOT`
@@ -84,7 +84,7 @@ before importing `rpy2`. R initializes in `PROJECT_ROOT`, automatically runs
 `.Rprofile`, activates `.renv/library/`, and registers the custom snapshot filter
 once for the entire session.
 
-Notebook cells call `r_eval()`, `pl_to_r()`, `r_to_pl()` without any in-cell
+Notebook cells call `r_eval()`, `pl_to_r()`, `r_png()`, `r_to_pl()` without any in-cell
 R environment setup or conversion boilerplate.
 
 Alternative, if you prefer not to touch notebook code — export the library path

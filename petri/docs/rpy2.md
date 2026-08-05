@@ -145,7 +145,7 @@ This template provides `petri/r_bridge.py` to simplify `rpy2` usage in marimo no
 
 ```python
 import polars as pl
-from petri.r_bridge import pl_to_r, r_eval, r_set, r_to_pl
+from petri.r_bridge import pl_to_r, r_eval, r_png, r_set, r_to_pl
 
 # Python -> R (Polars to R data.frame without pandas)
 pl_to_r(df, "r_df")
@@ -157,6 +157,9 @@ p <- ggboxplot(r_df, x = "group", y = "value")
 ggsave("data/cache/plot.png", p)
 """)
 
+# R graphics -> PNG bytes, with no file on disk
+mo.image(r_png("print(p)", width=500, height=400), width=500)
+
 # R -> Python (R data.frame to Polars)
 summary_df = r_to_pl("summary_df")
 ```
@@ -165,6 +168,13 @@ Key features of `petri/r_bridge.py`:
 - Sets working directory to `PROJECT_ROOT` before importing `rpy2`, so `.Rprofile` and `.renv/library/` load once automatically at startup.
 - Wraps all R operations in `_conv.context()` so `rpy2` conversion rules work across marimo's multi-threaded cell execution contexts.
 - Transfers data directly between Polars and R without `pandas` or `pandas2ri`.
+
+Reach for `r_png()` rather than importing `rpy2.robjects.lib.grdevices` in a cell.
+That import calls `importr("grDevices")` as a side effect, so it needs the
+conversion rules to be in scope and fails with
+`NotImplementedError: Conversion rules ... appear to be missing` when a cell runs
+it directly. Rendering through `ggsave()` inside `r_eval()` and reading the file
+back is still fine — that path never touches rpy2's converters.
 
 Notes for notebook use:
 

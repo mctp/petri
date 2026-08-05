@@ -159,13 +159,20 @@ covers why it is shaped this way, and pins the manifest schema field by field.
 ### R interop
 
 ```python
-from petri.r_bridge import pl_to_r, r_eval, r_set, r_to_pl
+from petri.r_bridge import pl_to_r, r_eval, r_png, r_set, r_to_pl
 ```
 
 - **Polars only.** Do not use `pandas`.
 - **Do not call `renv::load()` or `activate.R`** in a cell. `r_bridge` activates
   `renv` on import.
 - **Reference Polars DataFrames in cell signatures** to trigger marimo updates.
+- **Go through `r_bridge`, never `rpy2` directly.** rpy2 keeps its conversion
+  rules in a `ContextVar` and marimo runs each cell in a thread that does not
+  carry it, so a bare rpy2 call raises `NotImplementedError: Conversion rules
+  ... appear to be missing`. Every bridge function enters that context for you.
+  For a plot, that means `r_png(code) -> bytes` instead of importing
+  `rpy2.robjects.lib.grdevices`; if you need something the bridge does not
+  cover, add it to `r_bridge` rather than reaching past it from a cell.
 
 ---
 

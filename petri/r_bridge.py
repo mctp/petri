@@ -50,6 +50,24 @@ def pl_to_r(df: pl.DataFrame, name: str) -> None:
         )
 
 
+def r_png(code: str, *, width: int = 500, height: int = 400) -> bytes:
+    """Render the plot `code` draws into PNG bytes, without writing a file.
+
+    `width` and `height` are pixels, as R's `png()` device takes them.
+    """
+    with _conv.context():
+        # Imported here, not at module scope: the import itself calls
+        # importr("grDevices"), which needs the conversion rules this context
+        # installs. At module scope it would run before any context exists.
+        from rpy2.robjects.lib import grdevices
+
+        with grdevices.render_to_bytesio(
+            grdevices.png, width=width, height=height
+        ) as bio:
+            ro.r(code)
+        return bio.getvalue()
+
+
 def r_to_pl(r_var_name: str) -> pl.DataFrame:
     """Pull an R data.frame from R's global environment into a Polars DataFrame."""
     with _conv.context():
@@ -63,6 +81,7 @@ __all__ = [
     "PROJECT_ROOT",
     "pl_to_r",
     "r_eval",
+    "r_png",
     "r_set",
     "r_to_pl",
 ]
