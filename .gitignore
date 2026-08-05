@@ -45,6 +45,20 @@ data/preserved/*
 data/cache/*
 !data/*/.gitkeep
 
+# ---- Notebooks and transformations (the user's workspace) ------------------
+# Same reasoning as `data/` above. `notebooks/` and `scripts/` hold what the
+# person using this template writes, and `make init` fills them from
+# `petri/examples/`. Since the template ships them empty, a file that appears
+# here is installed output, not source — committing one would ship a second,
+# drifting copy of an example. A change to an example belongs in the tracked
+# original under `petri/examples/`.
+#
+# As with `data/`, the directories themselves stay tracked via a .gitkeep each.
+notebooks/*
+scripts/*
+!notebooks/.gitkeep
+!scripts/.gitkeep
+
 # ---- petri/examples/ (the template's payload — tracked wholesale) ----------
 # What `make init` copies out has to be in git, so the rules above must not reach
 # it. They are all anchored to the repo root by their slashes and do not, but say
