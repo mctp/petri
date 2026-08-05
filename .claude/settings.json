@@ -7,8 +7,9 @@
       "Bash(bash .pi/skills/marimo-pair/scripts/discover-servers.sh *)",
       "Bash(bash .claude/skills/marimo-pair/scripts/execute-code.sh *)",
       "Bash(bash .claude/skills/marimo-pair/scripts/discover-servers.sh *)",
-      "Bash(curl -s http://localhost:*/api/*)",
-      "Bash(curl -s http://127.0.0.1:*/api/*)",
+      "Bash(curl -s http://localhost:*)",
+      "Bash(curl -s http://127.0.0.1:*)",
+      "Bash(jq *)",
       "Bash(make *)",
       "Bash(uv run *)"
     ]
