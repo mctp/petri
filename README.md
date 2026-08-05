@@ -47,6 +47,7 @@ petri/         paths, provenance, R interop — the API your notebooks import
   tests/       provenance contracts and the write-path test
   docs/        architecture, renv, rpy2
   skills/      marimo-pair and analysis, symlinked into .pi/ and .claude/
+  r-restore.R  wave-by-wave renv restore, run by `make r-restore`
 ```
 
 The two language toolchains sit at the root and mirror each other, because
