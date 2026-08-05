@@ -38,12 +38,14 @@ def _(PROJECT_ROOT, mo):
             mo.accordion(
                 {
                     "Architecture & Design": mo.md(
-                        (PROJECT_ROOT / "docs/architecture.md").read_text()
+                        (PROJECT_ROOT / "petri/docs/architecture.md").read_text()
                     ),
                     "R Environment (renv)": mo.md(
-                        (PROJECT_ROOT / "docs/renv.md").read_text()
+                        (PROJECT_ROOT / "petri/docs/renv.md").read_text()
                     ),
-                    "rpy2 Setup": mo.md((PROJECT_ROOT / "docs/rpy2.md").read_text()),
+                    "rpy2 Setup": mo.md(
+                        (PROJECT_ROOT / "petri/docs/rpy2.md").read_text()
+                    ),
                     "Agent Guidelines": mo.md((PROJECT_ROOT / "AGENTS.md").read_text()),
                 }
             ),
@@ -133,7 +135,7 @@ def _(CACHE_DIR, df, mo, r_eval, r_set):
                 [
                     mo.md(
                         "**Method 1: Save to disk via `ggsave` and load with `mo.image`**\n\n"
-                        "Rendered to `cache/r_example_ggpubr.png`. Use "
+                        "Rendered to `data/cache/r_example_ggpubr.png`. Use "
                         "`preserve_figure()` for a deliverable."
                     ),
                     v1,

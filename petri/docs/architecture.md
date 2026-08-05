@@ -21,7 +21,7 @@ Embedding R inside Python using `rpy2` within a reactive, multi-threaded noteboo
 1. **Working Directory & `renv` Auto-activation**:
    - `marimo` sets the Python kernel's working directory to `notebooks/`.
    - `petri/r_bridge.py` changes `os.chdir(PROJECT_ROOT)` before `import rpy2.robjects as ro`.
-   - When R initializes, it uses `getwd()` (`PROJECT_ROOT`), automatically finding `.Rprofile` and running `renv/activate.R` once.
+   - When R initializes, it uses `getwd()` (`PROJECT_ROOT`), automatically finding `.Rprofile` and running `.renv/activate.R` once.
 
 2. **CFFI ABI Mode**:
    - `petri/r_bridge.py` sets `os.environ["RPY2_CFFI_MODE"] = "ABI"` before importing `rpy2` to silence stderr CFFI warnings when the installed `rpy2` wheel was compiled against a different R build.
@@ -38,8 +38,8 @@ Embedding R inside Python using `rpy2` within a reactive, multi-threaded noteboo
 
 ## 3. R Package Management (`renv`)
 
-- **Venv-like Isolation**: R packages install into `renv/library/` (gitignored). `renv.lock` tracks exact versions.
-- **Custom Snapshot Filter**: Because R code lives inside Python strings in notebook files, standard `renv` dependency scanning ("implicit" mode) cannot discover imports. `renv/settings.json` sets `snapshot.type = "custom"`, and `.Rprofile` defines a filter that snapshots whatever packages are present in `renv/library/`.
+- **Venv-like Isolation**: R packages install into `.renv/library/` (gitignored), mirroring `.venv/`. `renv.lock` sits at the root beside `uv.lock` and tracks exact versions.
+- **Custom Snapshot Filter**: Because R code lives inside Python strings in notebook files, standard `renv` dependency scanning ("implicit" mode) cannot discover imports. `.renv/settings.json` sets `snapshot.type = "custom"`, and `.Rprofile` defines a filter that snapshots whatever packages are present in `.renv/library/`.
 
 ---
 
@@ -58,11 +58,11 @@ graph.
 graph LR
     Agent["pi / Claude Code"] -->|"execute-code.sh, cm"| Kernel["marimo kernel<br/>(source of truth)"]
     User["browser :2718"] --> Kernel
-    Kernel --> Ext["external/"] --> Proc["processing/"] --> Shared["shared/"] --> Pres["preserved/"]
+    Kernel --> Ext["data/external/"] --> Proc["scripts/"] --> Shared["data/shared/"] --> Pres["data/preserved/"]
 ```
 
 Definitions, source citations, and the frozen-snapshot rules are in
-[`.pi/skills/marimo-pair/reference/execution-context.md`](../.pi/skills/marimo-pair/reference/execution-context.md),
+[`petri/skills/marimo-pair/reference/execution-context.md`](../skills/marimo-pair/reference/execution-context.md),
 with the skill that uses them.
 
 ---
@@ -81,8 +81,8 @@ separated by who reads them.
 
 | Kind | Location | Read by | On mismatch |
 |---|---|---|---|
-| shared | `shared/` | other notebooks | `load_shared()` raises |
-| preserved | `preserved/<notebook>/<name>/` | people | `make check` reports |
+| shared | `data/shared/` | other notebooks | `load_shared()` raises |
+| preserved | `data/preserved/<notebook>/<name>/` | people | `make check` reports |
 
 A shared table has downstream consumers. If it is edited by hand or is out of
 date, it must fail at read time, before it reaches a figure. A preserved
@@ -90,25 +90,25 @@ artifact has no consumers, so its check only reports whether it still matches
 the code and inputs recorded for it.
 
 No notebook reads another notebook's preserved artifact. A result that other
-code needs is an interface, not a deliverable, and goes to `shared/` through
+code needs is an interface, not a deliverable, and goes to `data/shared/` through
 `save_shared()`. There is no `load_preserved()`.
 
 ### Naming
 
 Each data directory is named for the function that writes it:
-`load_external()` → `external/`, `save_shared()` → `shared/`, `preserve_*()` →
-`preserved/`. "Artifact" covers both kinds, so no directory uses that name.
+`load_external()` → `data/external/`, `save_shared()` → `data/shared/`,
+`preserve_*()` → `data/preserved/`. "Artifact" covers both kinds, so no directory uses that name.
 
 ### Boundary
 
-A notebook reads `shared/`. A producer notebook also reads `external/`. Petri
-versions `shared/`, so every notebook input is verifiable.
+A notebook reads `data/shared/`. A producer notebook also reads `data/external/`.
+Petri versions `data/shared/`, so every notebook input is verifiable.
 
-`external/` is outside the boundary. Petri does not own those files and does not
+`data/external/` is outside the boundary. Petri does not own those files and does not
 preserve them. It records `(path, size, sha256)` and reports a change as a
 warning, because the file can be re-supplied from outside without petri.
 
-Petri therefore guarantees reproducibility from `shared/` onward. External
+Petri therefore guarantees reproducibility from `data/shared/` onward. External
 inputs are recorded, not guaranteed.
 
 ### Identity
@@ -134,13 +134,13 @@ manifests alone let such a tree report clean.
 
 ### Producer notebooks
 
-A notebook that writes to `shared/` is a producer. A numeric filename prefix
+A notebook that writes to `data/shared/` is a producer. A numeric filename prefix
 marks it: `notebooks/00_ingest.py`, `10_normalize.py`. `make shared` runs
 `notebooks/[0-9]*.py` in sorted order, then verifies.
 
 There is no DAG engine. The sort order is the dependency graph. This is
 sufficient until producers depend on each other in more than one direction.
-Transformations are already plain functions in `processing/`, so a move to
+Transformations are already plain functions in `scripts/`, so a move to
 Snakemake would not require rewriting them.
 
 Producers run headless through the `app.run()` call at the end of each marimo
@@ -151,18 +151,18 @@ notebook. `make` exports `PYTHONPATH` for this: `python notebooks/00_x.py` puts
 Two runtime settings support the same notebooks in the editor.
 `auto_instantiate = false` prevents a pipeline run when you open a notebook.
 `auto_reload = "lazy"` marks importing cells stale when you edit a module in
-`processing/`, instead of keeping the kernel on the previous version.
+`scripts/`, instead of keeping the kernel on the previous version.
 
 ### Code dependencies
 
-Transformations live in `processing/`, not in cells. Functions there are
+Transformations live in `scripts/`, not in cells. Functions there are
 testable without a kernel, and a thin cell does not re-run an expensive chain
 when you edit the transformation. (`on_cell_change` is `autorun`.)
 
 The cell hash cannot see those functions. Rewrite one, re-run, and no recorded
 value changes. Each manifest therefore also carries `code_deps`: the hash of
 every project-local module the cell imports, resolved through `sys.modules` at
-write time. Editing `processing/measurements.py` marks the artifacts that import
+write time. Editing `scripts/measurements.py` marks the artifacts that import
 it stale and leaves the rest unchanged.
 
 `code_deps` covers modules under `PROJECT_ROOT`, except `petri/`, `.venv/`, and
@@ -177,7 +177,7 @@ the cell imports, not the whole transitive closure.
 
 ### Manifests
 
-Each artifact has one JSON manifest: `shared/<name>.manifest.json`, or
+Each artifact has one JSON manifest: `data/shared/<name>.manifest.json`, or
 `manifest.json` inside a preserved bundle. `manifest_version` is checked on
 read; a manifest from a newer petri is an error, not a silent misread. Git ignores the bytes and tracks the
 manifests, so `git log` on a manifest gives the artifact's version history. A
@@ -192,13 +192,13 @@ longer exists.
 Every field a manifest records about a file comes from that file's content: a
 size and a SHA-256, for outputs and for inputs alike. Nothing records an mtime.
 An earlier version did, as a fast path that let verification skip the hash, and
-because `shared/` ships its manifests without its tables, every collaborator's
+because `data/shared/` ships its manifests without its tables, every collaborator's
 first `make shared` rewrote every manifest with a new mtime and identical hashes.
 A record that changes when its subject does not is not a record.
 
-An input under `shared/` is pinned to the version its manifest published, not to
+An input under `data/shared/` is pinned to the version its manifest published, not to
 the bytes on disk; that table's own manifest is what verifies those. An input
-under `external/` is hashed like any other, but a change there is a warning
+under `data/external/` is hashed like any other, but a change there is a warning
 rather than an error, because those files are unowned and can be re-supplied
 without petri.
 
@@ -230,7 +230,7 @@ Verification is size, then hash, on every file. There is no fast path to skip.
 
 ### CSV
 
-`shared/` and `preserve_table()` write CSV, which agents and people can read
+`data/shared/` and `preserve_table()` write CSV, which agents and people can read
 with `grep`. CSV carries no dtypes, so petri records the Polars schema in the
 manifest and applies it through `schema_overrides` on read.
 

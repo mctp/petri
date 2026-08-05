@@ -10,10 +10,15 @@ __pycache__/
 
 # ---- Tooling caches -------------------------------------------------------
 .ruff_cache/
+.pytest_cache/
 .ipynb_checkpoints/
 
 # ---- marimo ---------------------------------------------------------------
+# Project settings live in [tool.marimo] in pyproject.toml, which marimo only
+# ever reads. There is no tracked .marimo.toml for it to rewrite; a stray one
+# would shadow that section, so keep it ignored rather than committed.
 __marimo__/
+.marimo.toml
 .marimo.toml.lock
 marimo.log
 
@@ -23,22 +28,24 @@ marimo.log
 .Rproj.user/
 
 # ---- Data (keep the tree and the provenance, not the payload) --------------
-# Each directory is named for the API verb that writes it.
-# external/   load_external()  — unowned; never versioned, fingerprinted only
-# shared/     save_shared()    — interface layer; bytes ignored, manifests kept
-# cache/      persistent_cache — disposable
-external/*
-cache/*
-shared/*
-!shared/*.manifest.json
-!external/.gitkeep
-!cache/.gitkeep
-!shared/.gitkeep
+# The four data directories live under data/. Each is named for the API verb
+# that writes it.
+# data/external/   load_external()  — unowned; never versioned, fingerprinted
+# data/shared/     save_shared()    — interface layer; bytes ignored, manifests
+#                                     kept
+# data/cache/      persistent_cache — disposable
+data/external/*
+data/cache/*
+data/shared/*
+!data/shared/*.manifest.json
+!data/external/.gitkeep
+!data/cache/.gitkeep
+!data/shared/.gitkeep
 # Committed exception: the fixture coding_patterns.py needs as a stand-in for
 # data that would normally arrive from outside. Real inputs stay untracked.
-!external/example_measurements.csv
+!data/external/example_measurements.csv
 
-# ---- preserved/ (terminal deliverables — tracked wholesale) ----------------
+# ---- data/preserved/ (terminal deliverables — tracked wholesale) -----------
 # preserve_figure() / preserve_table() / preserve_file(). Bundles are small by
 # construction: source-data.csv is what was plotted, not the matrix behind it.
 # Nothing here is ignored.

@@ -2,8 +2,9 @@
 
 An artifact is a file written with a manifest. There are two kinds:
 
-    shared     shared/. The channel between notebooks. save_shared() writes it.
-    preserved  preserved/<notebook>/<name>/. Deliverables for people. Notebook
+    shared     data/shared/. The channel between notebooks. save_shared() writes
+               it.
+    preserved  data/preserved/<notebook>/<name>/. Deliverables for people. Notebook
                code never reads them. preserve_figure(), preserve_table() and
                preserve_file() write them.
 
@@ -14,14 +15,14 @@ Three functions and one inference are absent by design:
 
     load_preserved()  Preserved artifacts are terminal. A notebook that needs
                       another notebook's result promotes it with save_shared().
-    save_external()   external/ is read-only.
+    save_external()   data/external/ is read-only.
     save_preserved()  The three preserve_* functions take its place. Each writes
                       different bundle contents, so the kind belongs in the name.
     name inference    The marimo kernel does not expose a cell's name at
                       runtime, only an ephemeral cell id. preserve_*() takes
                       the name as an argument. check() detects a rename.
 
-See docs/architecture.md section 5.
+See petri/docs/architecture.md section 5.
 """
 
 from __future__ import annotations
@@ -120,7 +121,7 @@ class CheckReport:
 
 
 def _check_table_name(name: str) -> None:
-    """Validate a shared table name. It becomes shared/<name>.csv."""
+    """Validate a shared table name. It becomes data/shared/<name>.csv."""
     if not name or name != name.strip():
         raise ArtifactError(
             f"invalid table name {name!r}: empty, or padded with whitespace"
@@ -128,7 +129,8 @@ def _check_table_name(name: str) -> None:
     if "/" in name or "\\" in name or name.startswith("."):
         raise ArtifactError(
             f"invalid table name {name!r}: a shared table is one flat file in "
-            "shared/, so the name cannot hold a path separator or start with a dot."
+            "data/shared/, so the name cannot hold a path separator or start "
+            "with a dot."
         )
 
 
@@ -162,12 +164,12 @@ def _check_filename(filename: str) -> None:
 
 
 def _check_relpath(relpath: str | Path) -> None:
-    """Validate a path under external/. Nesting is allowed, escaping is not."""
+    """Validate a path under data/external/. Nesting is allowed, escaping is not."""
     path = Path(relpath)
     if path.is_absolute() or ".." in path.parts:
         raise ArtifactError(
             f"invalid external path {str(relpath)!r}: it must be relative to "
-            "external/ and must not climb out of it."
+            "data/external/ and must not climb out of it."
         )
 
 
@@ -254,7 +256,7 @@ def _relpath(path: Path) -> str:
 def _code_deps(cell_code: str) -> list[dict[str, Any]]:
     """Hash the project-local modules a cell imports.
 
-    A transformation in `processing/` is outside the cell, so the cell hash does
+    A transformation in `scripts/` is outside the cell, so the cell hash does
     not cover it. Rewrite the function, re-run, and no recorded value changes.
     These hashes close that gap: `make check` then marks the dependent artifacts
     stale.
@@ -308,9 +310,11 @@ def _code_deps(cell_code: str) -> list[dict[str, Any]]:
 def _describe_input(path: Path) -> dict[str, Any]:
     """Classify an input by where it lives. Every kind is identified by content.
 
-    shared/    The hash comes from that table's manifest, which pins the input to
-               the published version rather than to the bytes on disk.
-    external/  Not owned by petri, so a change is a warning rather than an error.
+    data/shared/    The hash comes from that table's manifest, which pins the
+                    input to the published version rather than to the bytes on
+                    disk.
+    data/external/  Not owned by petri, so a change is a warning rather than an
+                    error.
                Hashed like anything else: a (size, mtime) fingerprint reported
                drift after a re-download of identical content and after every
                fresh clone, and load_external() reads all the bytes anyway.
@@ -326,7 +330,8 @@ def _describe_input(path: Path) -> dict[str, Any]:
         recorded = _output_entry(manifest, path.name) if manifest else None
         if recorded is None:
             raise ArtifactError(
-                f"declared input {rel} is in shared/ but no manifest records it. "
+                f"declared input {rel} is in data/shared/ but no manifest "
+                "records it. "
                 "Publish it with save_shared() first. An input with no recorded "
                 "version pins nothing, and every consumer inherits the gap."
             )
@@ -396,7 +401,7 @@ def _csv_bytes(data: pl.DataFrame) -> bytes:
 def _schema_of(data: pl.DataFrame) -> dict[str, str]:
     """Record dtypes so a CSV round-trip can restore them.
 
-    shared/ is CSV so agents can grep it; the cost is that CSV carries no
+    data/shared/ is CSV so agents can grep it; the cost is that CSV carries no
     types. The schema here is what load_shared() feeds to schema_overrides.
     """
     return {name: str(dtype) for name, dtype in data.schema.items()}
@@ -562,7 +567,7 @@ def _record_output(manifest: dict[str, Any], path: Path, digest: str) -> None:
     Size and hash both come from the content, so a manifest is a function of what
     it describes. An earlier version also recorded an mtime, to let verification
     skip the hash. That made every fresh clone rewrite the manifest, because a
-    rebuilt file is byte-identical but newly stamped, and shared/ ships its
+    rebuilt file is byte-identical but newly stamped, and data/shared/ ships its
     manifests without the tables. Verification hashes instead.
     """
     filename = path.name
@@ -608,7 +613,7 @@ def shared_path(name: str, suffix: str = ".csv") -> Path:
 
 
 def external_path(relpath: str | Path) -> Path:
-    """Path to an unowned input under external/."""
+    """Path to an unowned input under data/external/."""
     _check_relpath(relpath)
     return EXTERNAL_DIR / relpath
 
@@ -620,9 +625,9 @@ def save_shared(
     inputs: Iterable[Path | str],
     description: str | None = None,
 ) -> Path:
-    """Publish an shared table to shared/<name>.csv.
+    """Publish an shared table to data/shared/<name>.csv.
 
-    The only writer of shared/. `inputs` is required. A shared table with no
+    The only writer of data/shared/. `inputs` is required. A shared table with no
     declared provenance cannot be verified, and every consumer inherits the gap.
 
     Every column must survive the CSV round trip, because load_shared() rebuilds
@@ -634,7 +639,7 @@ def save_shared(
     the block and its side effects, and the write does not happen.
     """
     # Validate, then resolve identity and inputs, then write. Anything that can
-    # fail must fail before the CSV lands, or shared/ holds a table with no
+    # fail must fail before the CSV lands, or data/shared/ holds a table with no
     # manifest.
     _check_table_name(name)
     _require_frame(data)
@@ -642,10 +647,10 @@ def save_shared(
     if unrestorable:
         listed = ", ".join(f"{column} ({dtype})" for column, dtype in unrestorable)
         raise ArtifactError(
-            f"load_shared() cannot restore these columns: {listed}. shared/ is "
-            "CSV and the manifest records a dtype by name, so a time zone, a "
-            "non-default time unit, a precision or a category list is lost. Cast "
-            "the column before publishing."
+            f"load_shared() cannot restore these columns: {listed}. "
+            "data/shared/ is CSV and the manifest records a dtype by name, so a "
+            "time zone, a non-default time unit, a precision or a category list "
+            "is lost. Cast the column before publishing."
         )
     payload = _csv_bytes(data)
     _, code = _cell_identity()
@@ -681,7 +686,7 @@ def preserve_figure(
     inputs: Iterable[Path | str] = (),
     formats: tuple[str, ...] = ("pdf", "png"),
 ) -> Path:
-    """Preserve a figure bundle to preserved/<notebook>/<name>/.
+    """Preserve a figure bundle to data/preserved/<notebook>/<name>/.
 
     Writes `<filename>.<fmt>` for each format, plus `<filename>-source.csv` with
     the plotted rows. A journal asks for the source data, and it cannot be
@@ -757,7 +762,7 @@ def preserve_table(
     title: str | None = None,
     inputs: Iterable[Path | str] = (),
 ) -> Path:
-    """Preserve a deliverable table as robust CSV in preserved/<notebook>/<name>/.
+    """Preserve a deliverable table as robust CSV in data/preserved/<notebook>/<name>/.
 
     Writes `<filename>.csv`. Pass a distinct `filename` for each table in a cell.
     """
@@ -784,7 +789,7 @@ def preserve_file(
     title: str | None = None,
     inputs: Iterable[Path | str] = (),
 ) -> Path:
-    """Preserve an already-serialized payload into preserved/<notebook>/<name>/.
+    """Preserve an already-serialized payload into data/preserved/<notebook>/<name>/.
 
     A Path copies that file in, and `filename` defaults to its basename. bytes
     or str are written as content and `filename` is required. A str is always
@@ -860,7 +865,7 @@ def load_shared(name: str) -> pl.DataFrame:
     A shared table that was edited by hand, truncated, or written by anything
     other than save_shared() fails here, before it reaches a figure.
 
-    Dtypes come from the schema recorded at write time. shared/ is CSV so that
+    Dtypes come from the schema recorded at write time. data/shared/ is CSV so that
     it stays readable with grep, and CSV carries no types.
     """
     manifest_path = SHARED_DIR / f"{name}.manifest.json"
@@ -878,7 +883,7 @@ def load_shared(name: str) -> pl.DataFrame:
     if problem is not None:
         raise ArtifactError(
             f"shared table '{name}' failed verification: {problem}. "
-            "Re-run the producer notebook. Do not edit shared/ by hand."
+            "Re-run the producer notebook. Do not edit data/shared/ by hand."
         )
     return pl.read_csv(
         target, schema_overrides=_schema_overrides(manifest.get("schema"))
@@ -886,7 +891,7 @@ def load_shared(name: str) -> pl.DataFrame:
 
 
 def load_external(relpath: str | Path) -> pl.DataFrame:
-    """Read a tabular file from external/.
+    """Read a tabular file from data/external/.
 
     For producer notebooks. This is the one crossing of the ownership boundary.
     For a non-tabular input, use external_path() and read the file yourself.
@@ -1073,13 +1078,13 @@ def _verify_manifest(manifest: dict[str, Any], base: Path) -> list[dict[str, str
                 )
         elif entry.get("sha256") and _sha256_file(path) != entry["sha256"]:
             if kind == "external":
-                # A warning, not an error: external/ is unowned, so petri reports
+                # A warning, not an error: data/external/ is unowned, so petri reports
                 # the change and leaves the decision to rebuild to you.
                 add("warning", f"external input changed: {entry['path']}")
             else:
                 add("error", f"input changed: {entry['path']}")
 
-    # Transformations in processing/ are outside the cell, so the cell code
+    # Transformations in scripts/ are outside the cell, so the cell code
     # hash does not cover them. This is an error, not a warning: if the function
     # that produced the output changed, the output is out of date.
     for entry in manifest.get("code_deps", []):
@@ -1096,7 +1101,7 @@ def _verify_manifest(manifest: dict[str, Any], base: Path) -> list[dict[str, str
 
 
 def _unlisted_files() -> list[dict[str, str]]:
-    """Find files in shared/ and preserved/ that no manifest lists.
+    """Find files in data/shared/ and data/preserved/ that no manifest lists.
 
     An artifact is a file plus a manifest. Verifying manifests alone leaves the
     other direction unchecked, so a hand-copied table or a figure left by an
@@ -1153,7 +1158,7 @@ def _unlisted_files() -> list[dict[str, str]]:
 
 
 def check() -> CheckReport:
-    """Verify every manifest under shared/ and preserved/.
+    """Verify every manifest under data/shared/ and data/preserved/.
 
     Covers four kinds of drift:
 

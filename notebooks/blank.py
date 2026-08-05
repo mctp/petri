@@ -31,7 +31,8 @@ def _(PROJECT_ROOT, mo):
 
                 ## Where output goes
 
-This is an **analysis notebook**: it reads `shared/` and writes `preserved/`.
+This is an **analysis notebook**: it reads `data/shared/` and writes
+`data/preserved/`.
 
                 | Want | Use |
                 |---|---|
@@ -44,7 +45,7 @@ This is an **analysis notebook**: it reads `shared/` and writes `preserved/`.
                 fails after a rename. Keep exploratory plots in the cell and preserve only
                 what ships. See `coding_patterns.py` patterns 7-10.
 
-                To write a **new** `shared/` table, add a producer notebook
+                To write a **new** `data/shared/` table, add a producer notebook
                 (`notebooks/NN_name.py`) and run `make shared`. See
                 `00_prepare_measurements.py`.
 
@@ -60,12 +61,14 @@ This is an **analysis notebook**: it reads `shared/` and writes `preserved/`.
             mo.accordion(
                 {
                     "Architecture & Design": mo.md(
-                        (PROJECT_ROOT / "docs/architecture.md").read_text()
+                        (PROJECT_ROOT / "petri/docs/architecture.md").read_text()
                     ),
                     "R Environment (renv)": mo.md(
-                        (PROJECT_ROOT / "docs/renv.md").read_text()
+                        (PROJECT_ROOT / "petri/docs/renv.md").read_text()
                     ),
-                    "rpy2 Setup": mo.md((PROJECT_ROOT / "docs/rpy2.md").read_text()),
+                    "rpy2 Setup": mo.md(
+                        (PROJECT_ROOT / "petri/docs/rpy2.md").read_text()
+                    ),
                     "Agent Guidelines": mo.md((PROJECT_ROOT / "AGENTS.md").read_text()),
                 }
             ),

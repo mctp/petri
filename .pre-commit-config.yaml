@@ -3,16 +3,16 @@ default_stages: [pre-commit]
 
 # Generated / vendored files: keep them byte-identical.
 #
-# preserved/ and shared/ hold artifacts whose bytes are pinned by a sha256 in
-# their manifest. A formatting hook that "fixes" a trailing newline changes the
+# data/preserved/ and data/shared/ hold artifacts whose bytes are pinned by a
+# sha256 in their manifest. A formatting hook that "fixes" a trailing newline changes the
 # hash and makes `make check` fail against a manifest the same commit wrote —
 # generated, hash-pinned output must never be rewritten in place.
 exclude: |
   (?x)^(
-    renv/activate\.R|
+    \.renv/activate\.R|
     renv\.lock|
-    preserved/|
-    shared/
+    data/preserved/|
+    data/shared/
   )
 
 repos:
@@ -42,9 +42,11 @@ repos:
       - id: uv-lock
 
   # detect-private-key matches PEM and SSH headers only, so an API token walks
-  # straight past it. A Gemini key reached origin/main this way: marimo writes
-  # .marimo.toml whenever its AI settings change, and that file is tracked for
-  # the runtime settings. Keys belong in .env, which git ignores.
+  # straight past it. A Gemini key reached origin/main this way: marimo used to
+  # rewrite a tracked .marimo.toml whenever its AI settings change. The runtime
+  # settings now live in pyproject.toml's [tool.marimo], which marimo only ever
+  # reads, so those writes land in the user's own config. This hook stays as the
+  # net. Keys belong in .env, which git ignores.
   - repo: local
     hooks:
       - id: no-api-keys

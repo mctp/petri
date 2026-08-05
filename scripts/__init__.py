@@ -1,6 +1,6 @@
 """Pure transformations. One stage of the pipeline.
 
-    external/  ->  processing/  ->  shared/
+    data/external/  ->  scripts/  ->  data/shared/
 
 This package holds your code. `petri/` holds the template's code. Keeping them
 apart means a template update does not touch your work.
@@ -15,5 +15,5 @@ Rules:
 - Functions here run without a kernel, so you can test them.
 
 An edit here marks the artifacts built from it stale in `make check`. See
-docs/architecture.md section 5.
+petri/docs/architecture.md section 5.
 """

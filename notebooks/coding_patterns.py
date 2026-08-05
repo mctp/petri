@@ -62,7 +62,7 @@ def _(PROJECT_ROOT, mo):
                 A reference guide focused on **Python $\\leftrightarrow$ R interop (`r_bridge`)**,
                 **Bioconductor package integration**, **marimo UI/DAG reactivity**, and **figure rendering recipes**.
 
-                Patterns 1-6 use synthetic data. Patterns 7-10 read `shared/`, which
+                Patterns 1-6 use synthetic data. Patterns 7-10 read `data/shared/`, which
                 `notebooks/00_prepare_measurements.py` writes. Run `make shared` first.
 
                 ## Interop & Visualization (1-6)
@@ -81,20 +81,22 @@ def _(PROJECT_ROOT, mo):
                 9. **Deliverable Table + Sidecar** — `preserve_table()` and `preserve_file()` sharing one bundle
                 10. **Verification** — `check()` and `list_preserved()`, the same pass `make check` runs
 
-                Patterns 1-6 write to `cache/`, which you can delete. Patterns 7-10 write to
-                `shared/` and `preserved/`. Exploratory output is never committed. A deliverable
+                Patterns 1-6 write to `data/cache/`, which you can delete. Patterns 7-10 write
+                to `data/shared/` and `data/preserved/`. Exploratory output is never committed. A deliverable
                 carries a manifest and is committed.
                 """
             ),
             mo.accordion(
                 {
                     "Architecture & Design": mo.md(
-                        (PROJECT_ROOT / "docs/architecture.md").read_text()
+                        (PROJECT_ROOT / "petri/docs/architecture.md").read_text()
                     ),
                     "R Environment (renv)": mo.md(
-                        (PROJECT_ROOT / "docs/renv.md").read_text()
+                        (PROJECT_ROOT / "petri/docs/renv.md").read_text()
                     ),
-                    "rpy2 Setup": mo.md((PROJECT_ROOT / "docs/rpy2.md").read_text()),
+                    "rpy2 Setup": mo.md(
+                        (PROJECT_ROOT / "petri/docs/rpy2.md").read_text()
+                    ),
                     "Agent Guidelines": mo.md((PROJECT_ROOT / "AGENTS.md").read_text()),
                 }
             ),
@@ -116,7 +118,7 @@ def _(mo):
                 * **Install CRAN package:** `make r-install PKG="ggplot2"`
                 * **Install Bioconductor package:** `make r-install PKG="bioc::limma"` or `PKG="bioc::DESeq2"`
                 * **Restore R library on fresh clone:** `make r-restore`
-                * **R-Python Bridge:** Importing `r_bridge` automatically sets working directory to project root, activating `.Rprofile` and `renv/library/` once for the entire session.
+                * **R-Python Bridge:** Importing `r_bridge` automatically sets working directory to project root, activating `.Rprofile` and `.renv/library/` once for the entire session.
                 """
             )
         ]
@@ -361,7 +363,7 @@ def _(CACHE_DIR, df_transformed, mo, r_eval, r_set):
                                 "**Method 1: Save to disk via `ggsave` and"
                                 " display with `mo.image`**\n"
                                 "Artifact saved in"
-                                f" `{r_plot_disk.relative_to(CACHE_DIR.parent)}`."
+                                f" `{r_plot_disk.relative_to(CACHE_DIR.parent.parent)}`."
                             ),
                             _v1,
                         ]
@@ -541,7 +543,7 @@ def _(CACHE_DIR, mo, np, plt, sns):
 def _(ArtifactError, load_shared, mo, shared_path):
     # Pattern 7: consume the shared layer.
     #
-    # An analysis notebook reads shared/ only. 00_prepare_measurements.py is the
+    # An analysis notebook reads data/shared/ only. 00_prepare_measurements.py is the
     # producing side. load_shared() verifies against the manifest and restores
     # dtypes, which CSV does not carry.
     #
@@ -558,7 +560,7 @@ def _(ArtifactError, load_shared, mo, shared_path):
     mo.stop(
         _problem is not None,
         mo.md(
-            "### Pattern 7: Consume the Interface Layer (`shared/`)\n\n"
+            "### Pattern 7: Consume the Interface Layer (`data/shared/`)\n\n"
             "Run `make shared` to write the tables that patterns 7-10 read.\n\n"
             f"```\n{_problem}\n```"
         ),
@@ -566,12 +568,12 @@ def _(ArtifactError, load_shared, mo, shared_path):
 
     mo.vstack(
         [
-            mo.md("### Pattern 7: Consume the Interface Layer (`shared/`)"),
+            mo.md("### Pattern 7: Consume the Interface Layer (`data/shared/`)"),
             mo.md(
-                "Read from `shared/`, written by `00_prepare_measurements.py`. "
+                "Read from `data/shared/`, written by `00_prepare_measurements.py`. "
                 f"The sibling `{shared_path('batch-stats').stem}.manifest.json` "
                 "records the input fingerprint, the producing cell's code hash, "
-                "the `code_deps` hash of `processing/`, the git commit, and the "
+                "the `code_deps` hash of `scripts/`, the git commit, and the "
                 "Polars schema."
             ),
             mo.ui.table(batch_stats.to_dicts(), selection=None),
@@ -651,7 +653,7 @@ def pattern9_batch_table(measurements, mo, pl, preserve_file, preserve_table):
     #
     # A bundle belongs to a cell. Several preserve_* calls write into one
     # manifest; delete one and the next run removes the file it wrote.
-    from processing.measurements import rank_by_significance
+    from scripts.measurements import rank_by_significance
 
     _ranked = rank_by_significance(measurements)
 
@@ -706,9 +708,9 @@ def _(check, list_preserved, mo):
             mo.md(f"```\n{_report}\n```"),
             mo.md(
                 "An error makes `make check` exit non-zero. A warning does not. "
-                "A changed `external/` input is a warning because petri does not "
+                "A changed `data/external/` input is a warning because petri does not "
                 "own those files: they can be re-supplied from outside. A file in "
-                "`shared/` or `preserved/` that no manifest records is an error."
+                "`data/shared/` or `data/preserved/` that no manifest records is an error."
             ),
             mo.ui.table(
                 [

@@ -1,6 +1,6 @@
 # The `marimo-pair` fork
 
-`.pi/skills/marimo-pair/` began as a copy of
+`petri/skills/marimo-pair/` began as a copy of
 [marimo-team/marimo-pair](https://github.com/marimo-team/marimo-pair) and is now
 petri's own fork. It is plain tracked files, not a submodule and not a synced
 copy.
@@ -38,7 +38,7 @@ changed since the fork:
 ```bash
 tmp=$(mktemp -d)
 git clone --depth 1 https://github.com/marimo-team/marimo-pair.git "$tmp/mp"
-diff -ru "$tmp/mp/skills/marimo-pair" .pi/skills/marimo-pair
+diff -ru "$tmp/mp/skills/marimo-pair" petri/skills/marimo-pair
 rm -rf "$tmp"
 ```
 

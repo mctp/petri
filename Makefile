@@ -5,7 +5,7 @@
 # own `runtime.pythonpath = ["."]` covers the editor but not script execution.
 export PYTHONPATH := $(CURDIR)
 
-# Producer notebooks rebuild shared/. The numeric prefix declares run order —
+# Producer notebooks rebuild data/shared/. The numeric prefix declares run order —
 # there is no DAG engine, so the sort IS the dependency graph. Everything else
 # under notebooks/ is an analysis notebook and is not run by `make shared`.
 PRODUCERS := $(sort $(wildcard notebooks/[0-9]*.py))
@@ -31,10 +31,10 @@ lint: ## Lint notebooks and verify formatting
 	uv run ruff check .
 	uv run ruff format --check .
 
-shared: ## Rebuild shared/ by running producer notebooks (notebooks/NN_*.py) in order, then verify
+shared: ## Rebuild data/shared/ by running producer notebooks (notebooks/NN_*.py) in order, then verify
 	@if [ -z "$(PRODUCERS)" ]; then \
 		echo "No producer notebooks found (expected notebooks/NN_name.py)."; \
-		echo "The numeric prefix declares run order; see docs/architecture.md."; \
+		echo "The numeric prefix declares run order; see petri/docs/architecture.md."; \
 	else \
 		for nb in $(PRODUCERS); do \
 			echo "==> $$nb"; \
@@ -44,10 +44,10 @@ shared: ## Rebuild shared/ by running producer notebooks (notebooks/NN_*.py) in 
 	@$(MAKE) --no-print-directory check
 
 test: ## Run the test suite (contracts plus the make shared/check write path)
-	uv run pytest tests/ -q
+	uv run pytest petri/tests/ -q
 
 # Needs the tables present, so run `make shared` first on a fresh clone:
-# shared/ ships its manifests, not its CSVs.
+# data/shared/ ships its manifests, not its CSVs.
 check: ## Verify artifact and shared-table provenance (exits non-zero on errors)
 	@uv run python -c "import sys, petri; r = petri.check(); print(r); sys.exit(0 if r.ok else 1)"
 
@@ -55,7 +55,7 @@ fmt: ## Auto-fix lint issues and format
 	uv run ruff check --fix .
 	uv run ruff format .
 
-r-restore: ## Install R packages from renv.lock into renv/library
+r-restore: ## Install R packages from renv.lock into .renv/library
 	Rscript -e 'renv::restore(prompt = FALSE)'
 
 r-install: ## Install R package(s) into the project library: make r-install PKG="ggplot2 bioc::DESeq2"
@@ -69,7 +69,7 @@ r-snapshot: ## Record the project library into renv.lock
 r-status: ## Show renv project status
 	Rscript -e 'renv::status()'
 
-clean: ## Remove tool caches and marimo session state (not preserved/ or shared/)
-	rm -rf .ruff_cache
+clean: ## Remove tool caches and marimo session state (not data/)
+	rm -rf .ruff_cache .pytest_cache
 	find . -name __pycache__ -type d -prune -exec rm -rf {} +
 	find notebooks -name __marimo__ -type d -prune -exec rm -rf {} +

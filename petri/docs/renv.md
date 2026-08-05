@@ -6,22 +6,33 @@ library starts empty, and you add packages as you need them.
 
 | Python                     | R                                   |
 | -------------------------- | ----------------------------------- |
-| `.venv/`                   | `renv/library/`                     |
+| `.venv/`                   | `.renv/library/`                    |
 | `uv.lock`                  | `renv.lock`                         |
 | `uv sync`                  | `renv::restore()` / `make r-restore`|
 | `uv add pkg`               | `renv::install("pkg")` + snapshot   |
 | `pyproject.toml`           | *(none — see "no DESCRIPTION")*     |
 
-Committed: `.Rprofile`, `renv.lock`, `renv/activate.R`, `renv/settings.json`.
-Ignored: `renv/library/`, `renv/sandbox/`, `renv/staging/` (renv writes its own
-`renv/.gitignore`).
+The layout mirrors the Python side exactly, which is why the table above lines
+up: the package library is hidden at `.renv/` next to `.venv/`, and the lockfile
+sits at the project root next to `uv.lock`. `uv.lock` cannot be relocated at
+all — uv offers no flag or environment variable for it — so keeping `renv.lock`
+beside it is the symmetric choice rather than an arbitrary one.
+
+renv looks for its directory at `renv/` by default, so `.Rprofile` sets
+`RENV_PATHS_RENV = ".renv"` to point it at the dot-name. The lockfile needs no
+variable: the project root is already renv's default. `.Rprofile` has to stay at
+the root because R sources it from the startup working directory.
+
+Committed: `.Rprofile`, `renv.lock`, `.renv/activate.R`, `.renv/settings.json`.
+Ignored: `.renv/library/`, `.renv/sandbox/`, `.renv/staging/` (renv writes its
+own `.renv/.gitignore`).
 
 ## Daily use
 
 ```bash
-make r-restore                       # rebuild renv/library from renv.lock
+make r-restore                       # rebuild .renv/library from renv.lock
 make r-install PKG="ggplot2 ggpubr"  # install into the project library + snapshot
-make r-snapshot                      # record the current library into renv.lock
+make r-snapshot                      # record the current library into the lockfile
 make r-status                        # check library vs. lockfile
 ```
 
@@ -40,7 +51,7 @@ package file.
 
 Instead the project uses renv's **custom** snapshot type: the dependency list
 *is* the project library, the way `.venv` is the source of truth for Python.
-`renv/settings.json` sets `snapshot.type = "custom"` and `.Rprofile` registers
+`.renv/settings.json` sets `snapshot.type = "custom"` and `.Rprofile` registers
 the filter:
 
 ```r
@@ -49,7 +60,7 @@ options(renv.snapshot.filter = function(project) {
 })
 ```
 
-This must be set **before** `source("renv/activate.R")`, because activate.R
+This must be set **before** `source(".renv/activate.R")`, because activate.R
 checks project sync during startup and errors out if the filter is missing.
 
 Both `renv::snapshot()` and `renv::status()` use the filter, so status reports
@@ -70,7 +81,7 @@ from petri.r_bridge import pl_to_r, r_eval, r_set, r_to_pl
 
 When `r_bridge` is imported, it sets the working directory to `PROJECT_ROOT`
 before importing `rpy2`. R initializes in `PROJECT_ROOT`, automatically runs
-`.Rprofile`, activates `renv/library/`, and registers the custom snapshot filter
+`.Rprofile`, activates `.renv/library/`, and registers the custom snapshot filter
 once for the entire session.
 
 Notebook cells call `r_eval()`, `pl_to_r()`, `r_to_pl()` without any in-cell
@@ -85,7 +96,7 @@ export R_LIBS_USER="$(Rscript -e 'cat(renv::paths$library())')"
 make nb
 ```
 
-### Do not `source("renv/activate.R")` from a notebook
+### Do not `source(".renv/activate.R")` from a notebook
 
 It resolves paths relative to the *current working directory*. Called with the
 kernel's cwd at `notebooks/`, it silently bootstraps a second renv project in

@@ -30,36 +30,64 @@ Run `make shared` once to write the example tables, then open
 
 ## Layout
 
+Yours:
+
 ```
 notebooks/     marimo notebooks. NN_*.py are producers, run by `make shared`
-               00_prepare_measurements.py  producer: external -> processing -> shared
+               00_prepare_measurements.py  producer: external -> scripts -> shared
                coding_patterns.py          worked examples of every pattern
-processing/    your transformations: pure functions, no I/O
-petri/         template library: paths, provenance, R interop
-tests/         provenance contracts and the write-path test
-docs/          architecture, renv, rpy2
+scripts/       your transformations: pure functions, no I/O
+data/          your data: external/ shared/ preserved/ cache/ (see below)
 ```
+
+The template's, under one folder so the root stays yours:
+
+```
+petri/         paths, provenance, R interop — the API your notebooks import
+  tests/       provenance contracts and the write-path test
+  docs/        architecture, renv, rpy2
+  skills/      marimo-pair and analysis, symlinked into .pi/ and .claude/
+```
+
+The two language toolchains sit at the root and mirror each other, because
+neither lockfile can be relocated — uv offers no flag for `uv.lock` at all:
+
+```
+                manifest        lockfile     library
+Python          pyproject.toml  uv.lock      .venv/
+R               (none)          renv.lock    .renv/
+```
+
+R has no manifest because the project has no `DESCRIPTION` file — see
+[petri/docs/renv.md](petri/docs/renv.md).
+
+The rest of the root is there because a tool insists: `.python-version` (uv
+walks up from the working directory to find it), `Makefile` (bare `make`),
+`.Rprofile` (R sources it from the startup directory),
+`.pre-commit-config.yaml`, and `AGENTS.md`. marimo's project settings live in
+`[tool.marimo]` in `pyproject.toml` rather than a `.marimo.toml` — see
+[Conventions](#conventions).
 
 ## Data flow
 
 ```
-external/  →  processing/  →  shared/  →  notebook  →  preserved/
+data/external/  →  scripts/  →  data/shared/  →  notebook  →  data/preserved/
 ```
 
 Each data directory is named for the function that writes it.
 
 | Directory | Written by | Read by | Git |
 |---|---|---|---|
-| `external/` | nobody — inputs from outside | producer notebooks | ignored |
-| `shared/` | `save_shared()` | any notebook | manifests only |
-| `preserved/` | `preserve_figure()`, `preserve_table()`, `preserve_file()` | people | tracked |
-| `cache/` | you | the kernel | ignored |
+| `data/external/` | nobody — inputs from outside | producer notebooks | ignored |
+| `data/shared/` | `save_shared()` | any notebook | manifests only |
+| `data/preserved/` | `preserve_figure()`, `preserve_table()`, `preserve_file()` | people | tracked |
+| `data/cache/` | you | the kernel | ignored |
 
-`shared/` is the only channel between notebooks. `preserved/` holds
+`data/shared/` is the only channel between notebooks. `data/preserved/` holds
 deliverables: a figure bundle is a PDF, a PNG, the plotted source data, and a
 manifest. Every write records provenance, and `make check` verifies it.
 
-See [docs/architecture.md](docs/architecture.md) for the design and
+See [petri/docs/architecture.md](petri/docs/architecture.md) for the design and
 `petri/provenance.py` for the API.
 
 ## Commands
@@ -80,32 +108,40 @@ stays in sync.
 R packages use [renv](https://rstudio.github.io/renv/):
 
 ```bash
-make r-restore                             # rebuild renv/library from renv.lock
+make r-restore                             # rebuild .renv/library from renv.lock
 make r-install PKG="ggplot2 bioc::DESeq2"  # install and snapshot
 ```
 
-`rpy2` needs a local R installation. See [docs/renv.md](docs/renv.md) and
-[docs/rpy2.md](docs/rpy2.md).
+`rpy2` needs a local R installation. See [petri/docs/renv.md](petri/docs/renv.md)
+and [petri/docs/rpy2.md](petri/docs/rpy2.md).
 
 ## Conventions
 
 - Notebooks are `.py` files. They diff, review, and run as scripts.
 - Do not edit a notebook file while its kernel runs. The kernel overwrites it.
 - Secrets go in `.env`. Document new keys in `.env.example`.
-- The `marimo-pair` skill is a fork in `.pi/skills/`, owned by this repo. See
-  [docs/marimo-pair-fork.md](docs/marimo-pair-fork.md).
+- marimo's project settings live in `[tool.marimo]` in `pyproject.toml`. marimo
+  reads that section and never writes to it, so a key typed into the AI panel
+  lands in your own `~/.config/marimo/marimo.toml`, not in a tracked file.
+  Personal preferences — theme, font size, keymap — belong there too.
+- The `marimo-pair` skill is a fork in `petri/skills/`, owned by this repo. See
+  [petri/docs/marimo-pair-fork.md](petri/docs/marimo-pair-fork.md).
 - Agent instructions are in [AGENTS.md](AGENTS.md).
 
 ## Agents
 
 The repo works with [pi](https://github.com/earendil-works/pi) and with Claude
-Code. `.pi/` is canonical; the Claude Code entry points are symlinks, so nothing
-is duplicated:
+Code. The skills are template machinery, so they live in `petri/skills/` with
+the rest of it, and each agent's entry point is a symlink — one copy, two
+readers, and neither tool's directory owns the content:
 
 ```
+petri/skills/             the skills themselves: marimo-pair, analysis
+.pi/skills       -> ../petri/skills
+.claude/skills   -> ../petri/skills
 CLAUDE.md        -> AGENTS.md
-.claude/skills   -> ../.pi/skills
 .claude/settings.json     permission allowlist for the marimo scripts and make
 ```
 
-On Windows, symlinks need `git config core.symlinks=true` or Developer Mode.
+Adding a third agent means one more symlink, not a third copy. On Windows,
+symlinks need `git config core.symlinks=true` or Developer Mode.

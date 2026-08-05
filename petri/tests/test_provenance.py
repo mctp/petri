@@ -1,7 +1,7 @@
 """Contract tests for petri.provenance.
 
 These pin the decisions that documentation asserts, so a future edit that
-contradicts `docs/architecture.md` or `AGENTS.md` fails here rather than drifting
+contradicts `petri/docs/architecture.md` or `AGENTS.md` fails here rather than drifting
 quietly. Several of them encode bugs that already happened once — the float
 precision trap, the trailing-newline hash mismatch, the unnamed-cell collapse.
 
@@ -58,7 +58,7 @@ def test_csv_rejects_non_polars_input():
 
 
 def test_schema_round_trips_dtypes_through_csv():
-    """shared/ is CSV so it stays greppable; the schema restores what CSV drops."""
+    """data/shared/ is CSV so it stays greppable; the schema restores what CSV drops."""
     df = pl.DataFrame({"a": [1], "b": ["x"], "c": [1.5], "d": [True]})
     schema = A._schema_of(df)
     restored = pl.read_csv(
@@ -156,26 +156,26 @@ def test_notebook_cells_returns_a_list_not_a_dict():
 
 
 def test_code_deps_records_project_local_imports():
-    import processing.measurements  # noqa: F401  (must be in sys.modules)
+    import scripts.measurements  # noqa: F401  (must be in sys.modules)
 
-    deps = A._code_deps("from processing.measurements import summarize_batches")
+    deps = A._code_deps("from scripts.measurements import summarize_batches")
     paths = {d["path"] for d in deps}
-    assert "processing/measurements.py" in paths
+    assert "scripts/measurements.py" in paths
     # The package __init__ runs when a submodule is imported, so an edit there
     # changes the result too.
-    assert "processing/__init__.py" in paths
+    assert "scripts/__init__.py" in paths
 
 
 def test_code_deps_follows_from_package_import_submodule():
     """`from pkg import mod` names a submodule, not an attribute.
 
-    Recording only `pkg` hashed processing/__init__.py and left the module that
+    Recording only `pkg` hashed scripts/__init__.py and left the module that
     did the work unhashed, so editing it staled nothing.
     """
-    import processing.measurements  # noqa: F401
+    import scripts.measurements  # noqa: F401
 
-    deps = A._code_deps("from processing import measurements")
-    assert "processing/measurements.py" in {d["path"] for d in deps}
+    deps = A._code_deps("from scripts import measurements")
+    assert "scripts/measurements.py" in {d["path"] for d in deps}
 
 
 def test_code_deps_excludes_the_template_and_third_party():
@@ -193,7 +193,7 @@ def test_code_deps_survives_unparsable_code():
 
 @pytest.mark.parametrize("name", ["load_preserved", "load_artifact", "save_external"])
 def test_absences_are_load_bearing(name):
-    """Artifacts are terminal and external/ is read-only.
+    """Artifacts are terminal and data/external/ is read-only.
 
     The absence of a convenient loader is what keeps deliverables from quietly
     becoming interfaces.
@@ -249,13 +249,13 @@ def test_writers_raise_without_a_marimo_runtime():
 
 def test_missing_declared_input_is_rejected():
     with pytest.raises(A.ArtifactError, match="does not exist"):
-        A._describe_input(PROJECT_ROOT / "external/definitely-not-here.csv")
+        A._describe_input(PROJECT_ROOT / "data/external/definitely-not-here.csv")
 
 
 def test_guarded_failure_leaves_no_partial_write(tmp_path):
     """Identity and inputs resolve before anything is written.
 
-    Otherwise a scratchpad call would leave an unprovenanced table in shared/.
+    Otherwise a scratchpad call would leave an unprovenanced table in data/shared/.
     """
     before = set(A.SHARED_DIR.glob("*"))
     with pytest.raises(A.ArtifactError):
@@ -342,7 +342,7 @@ def test_list_shared_reads_the_recorded_filename():
     """Rebuilding the path would assume .csv forever."""
     for entry in A.list_shared():
         assert entry["path"], entry
-        assert entry["path"].startswith("shared/")
+        assert entry["path"].startswith("data/shared/")
 
 
 # --- the manifest is a function of content -----------------------------------
@@ -351,7 +351,7 @@ def test_list_shared_reads_the_recorded_filename():
 def test_outputs_record_only_content_derived_fields():
     """An mtime here made every fresh clone rewrite the manifest.
 
-    shared/ ships its manifests without the tables, so a rebuilt table is
+    data/shared/ ships its manifests without the tables, so a rebuilt table is
     byte-identical but newly stamped, and the committed record changed for
     everyone who cloned.
     """
@@ -364,7 +364,7 @@ def test_outputs_record_only_content_derived_fields():
 
 
 def test_inputs_are_identified_by_content():
-    """Including external/. A (size, mtime) fingerprint reported drift on clone."""
+    """Including data/external/. A (size, mtime) fingerprint reported drift on clone."""
     for manifest_path in A.SHARED_DIR.glob("*.manifest.json"):
         for entry in json.loads(manifest_path.read_text())["inputs"]:
             assert entry.get("sha256"), entry
@@ -467,7 +467,7 @@ def test_a_rejected_payload_leaves_the_bundle_intact(bundle_writer, call, match)
 
 @pytest.fixture
 def empty_tree(tmp_path, monkeypatch):
-    """Point the module at an empty shared/ and preserved/."""
+    """Point the module at an empty data/shared/ and data/preserved/."""
     shared, preserved = tmp_path / "shared", tmp_path / "preserved"
     shared.mkdir()
     preserved.mkdir()

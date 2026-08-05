@@ -27,7 +27,7 @@ current.
 | When you | Call | Not |
 |---|---|---|
 | need data in an analysis notebook | `load_shared("name")` | `pl.read_csv(...)` |
-| need an unowned input, in a producer notebook | `load_external("file.csv")` | reading `external/` directly |
+| need an unowned input, in a producer notebook | `load_external("file.csv")` | reading `data/external/` directly |
 | have a table other notebooks need | `save_shared(df, "name", inputs=[...])` | `df.write_csv(SHARED_DIR / ...)` |
 | have a figure that ships | `preserve_figure(fig, "<cell name>", source_data=df)` | `fig.savefig(...)` |
 | have a table that ships | `preserve_table(df, "<cell name>")` | `df.write_csv(...)` |
@@ -49,19 +49,19 @@ Cells have kinds, not a fixed order. Several of each is normal.
 | setup | imports, kept together near the top |
 | narrative | `mo.md` or `mo.vstack`, no computation; placed before the step it describes |
 | input | `load_shared()`, or `load_external()` in a producer notebook |
-| step | computes and displays; anything non-trivial calls a function in `processing/` |
+| step | computes and displays; anything non-trivial calls a function in `scripts/` |
 
 Edit the cell that owns a name; add a cell for a new name.
 
 Any step becomes a deliverable in place: name the cell to match the artifact and
-call `preserve_*` inside it. The bundle is `preserved/<notebook>/<cell name>/`, so
+call `preserve_*` inside it. The bundle is `data/preserved/<notebook>/<cell name>/`, so
 the cell stays where it is in the document.
 
 ## Scratchpad
 
 The scratchpad runs code in the notebook's kernel without adding a cell. Use it to:
 
-- **test** a `processing/` function before wiring it into a cell
+- **test** a `scripts/` function before wiring it into a cell
 - **debug** a cell that failed
 - **inspect** a frame, a schema, or any value the notebook defined
 - **one-off** calls such as `check()` or `list_preserved()`
@@ -83,7 +83,7 @@ questions:
 - **the raster render**, with the `read` tool — what it looks like. Needs a
   terminal that renders images. Do not assume a filename: `list_preserved()`
   reports each bundle's actual files, and a bundle built with `formats=("svg",)`
-  has no PNG at all. For a figure you have not preserved, write one to `cache/`
+  has no PNG at all. For a figure you have not preserved, write one to `data/cache/`
   and read that.
 - **the SVG, as text** — what was actually drawn, with no image support needed.
   matplotlib writes the tick values as comments, so you can read the axis ranges

@@ -39,12 +39,14 @@ def _(PROJECT_ROOT, mo):
             mo.accordion(
                 {
                     "Architecture & Design": mo.md(
-                        (PROJECT_ROOT / "docs/architecture.md").read_text()
+                        (PROJECT_ROOT / "petri/docs/architecture.md").read_text()
                     ),
                     "R Environment (renv)": mo.md(
-                        (PROJECT_ROOT / "docs/renv.md").read_text()
+                        (PROJECT_ROOT / "petri/docs/renv.md").read_text()
                     ),
-                    "rpy2 Setup": mo.md((PROJECT_ROOT / "docs/rpy2.md").read_text()),
+                    "rpy2 Setup": mo.md(
+                        (PROJECT_ROOT / "petri/docs/rpy2.md").read_text()
+                    ),
                     "Agent Guidelines": mo.md((PROJECT_ROOT / "AGENTS.md").read_text()),
                 }
             ),
@@ -74,7 +76,7 @@ def _(np, pl):
 def _(CACHE_DIR, df, mo, pl, plt, sns):
     from scipy import stats
 
-    # cache/ holds exploratory output and you can delete it. A figure that
+    # data/cache/ holds exploratory output and you can delete it. A figure that
     # ships goes through preserve_figure(). See coding_patterns.py pattern 8.
     plot_path = CACHE_DIR / "py_example_seaborn.png"
 

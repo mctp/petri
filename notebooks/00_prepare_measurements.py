@@ -19,15 +19,15 @@ def _(mo):
         """
         # 00 — Prepare measurements
 
-        A **producer notebook**. It reads `external/`, calls `processing/`, and
-        publishes to `shared/`. `make shared` runs every `notebooks/NN_*.py` in
+        A **producer notebook**. It reads `data/external/`, calls `scripts/`,
+        and publishes to `data/shared/`. `make shared` runs every `notebooks/NN_*.py` in
         sorted order, so the numeric prefix sets the run order.
 
         ```
-        external/  ->  processing/  ->  shared/  ->  analysis notebooks
+        data/external/  ->  scripts/  ->  data/shared/  ->  analysis notebooks
         ```
 
-The cell orchestrates; `processing/` computes. `coding_patterns.py` patterns
+The cell orchestrates; `scripts/` computes. `coding_patterns.py` patterns
         7-10 cover the artifact API.
         """
     )
@@ -36,7 +36,7 @@ The cell orchestrates; `processing/` computes. `coding_patterns.py` patterns
 
 @app.cell
 def measurements_ranked(CACHE_DIR, external_path, load_external, mo, save_shared):
-    from processing.measurements import rank_by_significance
+    from scripts.measurements import rank_by_significance
 
     raw = load_external("example_measurements.csv")
 
@@ -56,7 +56,7 @@ def measurements_ranked(CACHE_DIR, external_path, load_external, mo, save_shared
 
 @app.cell
 def batch_stats(external_path, raw, save_shared):
-    from processing.measurements import summarize_batches
+    from scripts.measurements import summarize_batches
 
     save_shared(
         summarize_batches(raw),
@@ -75,8 +75,8 @@ def _(mo):
 
         | Table | Contents |
         |---|---|
-        | `shared/measurements-ranked` | one row per sample, sorted by p-value |
-        | `shared/batch-stats` | one row per batch and group |
+        | `data/shared/measurements-ranked` | one row per sample, sorted by p-value |
+        | `data/shared/batch-stats` | one row per batch and group |
 
         Git tracks the manifests, not the CSV bytes. Run `make check` to verify
         both against their manifests.

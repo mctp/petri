@@ -154,7 +154,7 @@ pl_to_r(df, "r_df")
 r_eval("""
 suppressPackageStartupMessages(library(ggpubr))
 p <- ggboxplot(r_df, x = "group", y = "value")
-ggsave("cache/plot.png", p)
+ggsave("data/cache/plot.png", p)
 """)
 
 # R -> Python (R data.frame to Polars)
@@ -162,7 +162,7 @@ summary_df = r_to_pl("summary_df")
 ```
 
 Key features of `petri/r_bridge.py`:
-- Sets working directory to `PROJECT_ROOT` before importing `rpy2`, so `.Rprofile` and `renv/library/` load once automatically at startup.
+- Sets working directory to `PROJECT_ROOT` before importing `rpy2`, so `.Rprofile` and `.renv/library/` load once automatically at startup.
 - Wraps all R operations in `_conv.context()` so `rpy2` conversion rules work across marimo's multi-threaded cell execution contexts.
 - Transfers data directly between Polars and R without `pandas` or `pandas2ri`.
 

@@ -1,14 +1,14 @@
 {
   "cell_code_sha256": "99e1ea270cc609f9395cf0d9aef1354e6ea618904146e3dbc79f37a5fc852f27",
   "code_deps": [],
-  "created": "2026-08-03T03:16:16+00:00",
-  "git_commit": "51dd558",
+  "created": "2026-08-04T16:18:47+00:00",
+  "git_commit": "1f27de8",
   "id": "pattern8_batch_effect",
   "inputs": [
     {
       "kind": "shared",
       "name": "measurements-ranked",
-      "path": "shared/measurements-ranked.csv",
+      "path": "data/shared/measurements-ranked.csv",
       "sha256": "16029dd6928ba6630c4a2934d4939065d501e82787a86cd791344507863ea51a"
     }
   ],
@@ -23,13 +23,13 @@
     },
     {
       "filename": "figure.pdf",
-      "sha256": "46b104ddd9bbb5716b4e77714c1b6a25816dcade46dda1fa57290a8bac67f4bb",
-      "size": 13178
+      "sha256": "320a6ea34eadac9d4435954eed0acf04c90b9d1344b33605a957996965d747e7",
+      "size": 13175
     },
     {
       "filename": "figure.png",
-      "sha256": "2392eaa69a783b4707b52a835bf5da87d1648e7751735560d3d888894a748f8b",
-      "size": 14796
+      "sha256": "627d0056596f8ad951031874c7dfedc82d931658c518a12be984b2ac8e7388e7",
+      "size": 14834
     }
   ],
   "schema": {
