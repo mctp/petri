@@ -11,7 +11,7 @@ works on are the same object.
 
 - [uv](https://docs.astral.sh/uv/) — Python and virtualenv
 - `git`, `bash`, `curl`, `jq`
-- R (optional, for `rpy2`)
+- `R`, `renv` (optional, for `rpy2`)
 
 ## Quickstart
 
@@ -22,11 +22,10 @@ make init full      # copy the examples in (or `make init` for just the notebook
 make nb             # start marimo on notebooks/ (port derived from this directory)
 ```
 
-Start `pi` in the project root in a second terminal and ask it to pair on the
+Start `pi` in the project root in a second terminal and ask the agent to pair on the
 notebook.
 
-Your folders ship empty, so nothing has to be deleted before real work starts.
-`make init` fills them from `petri/examples/`:
+Your folders ship empty, `make init` to jump-start from `petri/examples/`:
 
 | | Installs |
 |---|---|
@@ -48,7 +47,17 @@ scripts/       your transformations: pure functions, no I/O
 data/          your data: external/ shared/ preserved/ cache/ (see below)
 ```
 
-The template's, under one folder so the root stays yours:
+The two language toolchains are supported:
+
+```
+                manifest        lockfile     library
+Python          pyproject.toml  uv.lock      .venv/
+R               (none)          renv.lock    .renv/
+```
+
+For renv, see: [petri/docs/renv.md](petri/docs/renv.md).
+
+Petri infrastructure (do not delete):
 
 ```
 petri/         paths, provenance, R interop — the API your notebooks import
@@ -59,26 +68,11 @@ petri/         paths, provenance, R interop — the API your notebooks import
   init.py      the `make init` sets
   server.py    the per-directory marimo port, behind `make nb`
   r-restore.R  wave-by-wave renv restore, run by `make r-restore`
+.python-version (uv)
+.Rprofile (R sources it from the startup directory)
+.pre-commit-config.yaml
+AGENTS.md (agent instructions)
 ```
-
-The two language toolchains sit at the root and mirror each other, because
-neither lockfile can be relocated — uv offers no flag for `uv.lock` at all:
-
-```
-                manifest        lockfile     library
-Python          pyproject.toml  uv.lock      .venv/
-R               (none)          renv.lock    .renv/
-```
-
-R has no manifest because the project has no `DESCRIPTION` file — see
-[petri/docs/renv.md](petri/docs/renv.md).
-
-The rest of the root is there because a tool insists: `.python-version` (uv
-walks up from the working directory to find it), `Makefile` (bare `make`),
-`.Rprofile` (R sources it from the startup directory),
-`.pre-commit-config.yaml`, and `AGENTS.md`. marimo's project settings live in
-`[tool.marimo]` in `pyproject.toml` rather than a `.marimo.toml` — see
-[Conventions](#conventions).
 
 ## Data flow
 
@@ -88,19 +82,24 @@ data/external/  →  scripts/  →  data/shared/  →  notebook  →  data/prese
 
 Each data layer is named for the function that writes it.
 
-| Directory | Written by | Read by | Git |
-|---|---|---|---|
-| `data/external/` | nobody — inputs from outside | the cell that publishes | ignored |
-| `data/shared/` | `save_shared()` | any notebook | manifests only |
-| `data/preserved/` | `preserve_figure()`, `preserve_table()`, `preserve_file()` | people | tracked |
+| Directory | Written by | Read by |
+|---|---|---|
+| `data/external/` | nobody — inputs from outside | the cell that publishes |
+| `data/shared/` | `save_shared()` | any notebook |
+| `data/preserved/` | `preserve_figure()`, `preserve_table()`, `preserve_file()` | people |
 
 `data/shared/` is the only channel between notebooks. `data/preserved/` holds
 deliverables: a figure bundle is a PDF, a PNG, the plotted source data, and a
 manifest. Every write records provenance, and `make check` verifies it.
 
 `data/cache/` sits beside the three but is not a layer — petri never writes it and
-nothing verifies it. It is scratch space with a stable path, ignored by git, and
-safe to delete.
+nothing verifies it. It is scratch space with a stable path, safe to delete.
+
+**Git ignores all of `data/`.** It holds your inputs, your tables and your
+deliverables, and none of it is the template's to version. `make check` verifies
+provenance where the data is. Commit a manifest deliberately — `git add -f
+data/shared/<name>.manifest.json` — if a collaborator needs to verify a table you
+cannot send them.
 
 See [petri/docs/architecture.md](petri/docs/architecture.md) for the design and
 `petri/provenance.py` for the API.

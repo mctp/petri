@@ -155,11 +155,11 @@ def test_preserved_outputs_are_byte_stable(twice):
 
 
 def test_rebuilding_from_a_clone_rewrites_no_manifest(twice):
-    """The state every collaborator starts in: manifests present, tables not.
+    """A rebuild of a table that already has a manifest must not touch it.
 
-    Recording an mtime made this rewrite every manifest, because a rebuilt table
-    is byte-identical but newly stamped. The committed record has to be a
-    function of the content, or it conflicts in git for no reason.
+    Recording an mtime made this rewrite every manifest, because a rebuilt table is
+    byte-identical but newly stamped. A record that changes on an unchanged run
+    cannot tell a real change from a re-run.
 
     The only test that needs a third run: its setup deletes the tables first.
     """

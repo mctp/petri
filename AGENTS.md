@@ -183,6 +183,10 @@ Three data layers live under `data/`, each named for the function that writes it
 nothing verifies it. It is scratch space, safe to delete. `mo.persistent_cache`
 writes to `notebooks/__marimo__/cache` unless you pass `save_path=str(CACHE_DIR)`.
 
+**Git ignores all of `data/`, manifests included.** `make check` verifies
+provenance where the data is; nothing about it travels through the repository. Do
+not add a manifest to git unless the user asks — and then with `git add -f`.
+
 Three rules hold on every task, including tasks that are not data work:
 
 - **Never write or delete `data/external/`.** Those files arrive from outside and petri

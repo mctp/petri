@@ -107,8 +107,8 @@ def _(PROJECT_ROOT, mo):
 
                 Patterns 1-4 use synthetic data and write only to `data/cache/`, which you
                 can delete. Patterns 5-8 use the shared table and write `data/preserved/`.
-                Exploratory output is never committed; a deliverable carries a manifest and
-                is committed.
+                Git ignores all of `data/`; what separates a deliverable from scratch is
+                the manifest beside it, which `make check` verifies.
 
                 ## Project Documentation
                 """
@@ -214,8 +214,8 @@ def _(mo):
         | `data/shared/measurements-ranked` | one row per sample, sorted by p-value |
         | `data/shared/batch-stats` | one row per batch and group |
 
-        Git tracks the manifests, not the CSV bytes. Run `make check` to verify both
-        against their manifests.
+        Git ignores all of `data/`, manifests included. Run `make check` to verify
+        both tables against their manifests where they are.
         """
     )
     return
@@ -494,9 +494,9 @@ def _(
     # puts this cell after the producing cells: reading a file is invisible to the
     # dependency graph, so the path the writer returned is the edge.
     #
-    # The guard matters for an analysis notebook that has no producer of its own.
-    # Git tracks manifests, not CSV bytes, so a fresh clone has no shared tables.
-    # mo.stop() halts this cell and its dependents with one message.
+    # The guard matters for an analysis notebook that has no producer of its own:
+    # git ignores data/, so a fresh clone has no shared tables until something
+    # writes them. mo.stop() halts this cell and its dependents with one message.
     _ = (ranked_csv, batch_stats_csv)
 
     try:

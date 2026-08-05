@@ -183,10 +183,13 @@ the cell imports, not the whole transitive closure.
 
 Each artifact has one JSON manifest: `data/shared/<name>.manifest.json`, or
 `manifest.json` inside a preserved bundle. `manifest_version` is checked on
-read; a manifest from a newer petri is an error, not a silent misread. Git ignores the bytes and tracks the
-manifests, so `git log` on a manifest gives the artifact's version history. A
-preserved bundle is tracked in full, because the source data it carries holds the
-plotted rows, not the source matrix.
+read; a manifest from a newer petri is an error, not a silent misread.
+
+Git ignores all of `data/`, manifests included. Provenance is verified where the
+data is, by `make check`, rather than shipped through the repository — a manifest
+is a generated file, and the person using the template decides what of their own
+work to version. Committing one is a deliberate act (`git add -f`), worth doing
+when a collaborator has to verify a table they cannot download.
 
 #### The v1 schema
 
@@ -239,15 +242,16 @@ Two rules govern this table. Both were broken once.
 **No field changes on its own.** Everything except `title` and `created` is
 derived, and `created` is copied from the previous manifest rather than written
 again. Three fields broke this rule and are gone. An mtime came first, as a
-shortcut that let verification skip the hash; because `data/shared/` ships its
-manifests without its tables, every collaborator's first rebuild rewrote every
-manifest with a new mtime and identical hashes. A `git_commit` of HEAD and a `tool`
-version lasted longer. Neither was ever read, and both rewrote every manifest on a
-run that produced identical bytes — one when the branch moved, the other on the
-next Polars release. Removing them is why `git log` on a manifest now shows real
-changes to the data. The cell hash and `code_deps` already record the code that
-produced the artifact, which is what reproduction needs, and the commit is still in
-the manifest's own history.
+shortcut that let verification skip the hash; a rebuilt table is byte-identical
+but newly stamped, so a rebuild rewrote every manifest it touched while changing
+nothing. A `git_commit` of HEAD and a `tool` version lasted longer. Neither was
+ever read, and both rewrote every manifest on a run that produced identical bytes
+— one when the branch moved, the other on the next Polars release.
+
+The rule still holds now that manifests are not tracked. A manifest that rewrites
+itself on an unchanged run makes `check()` and any diff of the working tree
+useless for telling a real change from a re-run. The cell hash and `code_deps`
+record the code that produced the artifact, which is what reproduction needs.
 
 **No field outlives the code that wrote it.** A manifest is rebuilt from the
 skeleton on every write, and only `inputs`, `outputs`, `created` and `title` carry

@@ -8,10 +8,13 @@ default_stages: [pre-commit]
 # hash and makes `make check` fail against a manifest the same commit wrote —
 # generated, hash-pinned output must never be rewritten in place.
 #
-# petri/examples/data/ is the same files, and it is the copy that is actually
-# committed. end-of-file-fixer appended a newline to a preserved params.json
-# there, taking it from 43 bytes to 44 and breaking the sha256 its own manifest
-# recorded. Both prefixes must be excluded.
+# petri/examples/data/ is the same files, and it is the copy that is committed:
+# git ignores the working data/ entirely. end-of-file-fixer appended a newline to
+# a preserved params.json there, taking it from 43 bytes to 44 and breaking the
+# sha256 its own manifest recorded.
+#
+# The `data/` prefix stays optional rather than being dropped, so the rule also
+# covers an artifact somebody force-adds from their own working tree.
 exclude: |
   (?x)^(
     \.renv/activate\.R|

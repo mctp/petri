@@ -453,11 +453,10 @@ def test_list_shared_reads_the_recorded_filename():
 
 
 def test_outputs_record_only_content_derived_fields():
-    """An mtime here made every fresh clone rewrite the manifest.
+    """An mtime here made a rebuild rewrite the manifest.
 
-    data/shared/ ships its manifests without the tables, so a rebuilt table is
-    byte-identical but newly stamped, and the committed record changed for
-    everyone who cloned.
+    A rebuilt table is byte-identical but newly stamped, so the record changed
+    while its subject did not.
     """
     for manifest_path in A.SHARED_DIR.glob("*.manifest.json"):
         for entry in json.loads(manifest_path.read_text())["outputs"]:

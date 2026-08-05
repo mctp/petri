@@ -27,30 +27,23 @@ marimo.log
 .RData
 .Rproj.user/
 
-# ---- Data (keep the tree and the provenance, not the payload) --------------
-# The four data directories live under data/. Each is named for the API verb
-# that writes it.
-# data/external/   load_external()  — unowned; never versioned, fingerprinted
-# data/shared/     save_shared()    — interface layer; bytes ignored, manifests
-#                                     kept
-# data/cache/      persistent_cache — disposable
+# ---- Data (the user's workspace — the tree is tracked, nothing in it) ------
+# All four directories are ignored, manifests included. `data/` holds what the
+# person using this template is working on: inputs they were given, tables they
+# published, deliverables they rendered, and scratch. None of it is the
+# template's to version, and a manifest is a generated file like any other.
 #
-# These govern the user's workspace. The directories ship holding nothing but a
-# .gitkeep, and `make init` fills them, but what the user then writes there is
-# theirs to version: a manifest is committed so a collaborator can verify a table
-# they cannot download.
+# So provenance is verified where the data is, by `make check`, and not shipped
+# through git. Commit a manifest deliberately if a collaborator needs to verify a
+# table they cannot download — `git add -f data/shared/<name>.manifest.json`.
+#
+# The directories themselves are tracked, as a .gitkeep each, so a fresh clone
+# has somewhere for `make init` to write.
 data/external/*
-data/cache/*
 data/shared/*
-!data/shared/*.manifest.json
-!data/external/.gitkeep
-!data/cache/.gitkeep
-!data/shared/.gitkeep
-
-# ---- data/preserved/ (terminal deliverables — tracked wholesale) -----------
-# preserve_figure() / preserve_table() / preserve_file(). Bundles are small by
-# construction: source-data.csv is what was plotted, not the matrix behind it.
-# Nothing here is ignored.
+data/preserved/*
+data/cache/*
+!data/*/.gitkeep
 
 # ---- petri/examples/ (the template's payload — tracked wholesale) ----------
 # What `make init` copies out has to be in git, so the rules above must not reach
