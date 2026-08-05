@@ -123,10 +123,16 @@ def _(CACHE_DIR, df, mo, r_eval, r_set):
     v3 = mo.Html(str(svg_str[0]))
 
     # Method 4: Direct rpy2 Graphics Capture via grdevices
-    from rpy2.robjects.lib import grdevices
+    import rpy2.robjects as ro
 
-    with grdevices.render_to_bytesio(grdevices.png, width=500, height=400) as bio:
-        r_eval("print(p)")
+    # marimo runs each cell in a thread and rpy2 holds its conversion rules in a
+    # ContextVar, so direct rpy2 calls that bypass r_bridge must enter the
+    # conversion context themselves.
+    with ro.default_converter.context():
+        from rpy2.robjects.lib import grdevices
+
+        with grdevices.render_to_bytesio(grdevices.png, width=500, height=400) as bio:
+            r_eval("print(p)")
     v4 = mo.image(bio.getvalue(), width=500)
 
     mo.ui.tabs(
