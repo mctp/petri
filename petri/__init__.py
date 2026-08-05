@@ -16,7 +16,6 @@ R interop is a separate import, since it pulls in rpy2:
 
 from .paths import (
     CACHE_DIR,
-    DATA_DIR,
     EXTERNAL_DIR,
     PRESERVED_DIR,
     PROJECT_ROOT,
@@ -41,7 +40,6 @@ from .provenance import (
 
 __all__ = [
     "CACHE_DIR",
-    "DATA_DIR",
     "EXTERNAL_DIR",
     "PRESERVED_DIR",
     "PROJECT_ROOT",

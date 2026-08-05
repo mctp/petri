@@ -4,26 +4,29 @@ version = "0.1.0"
 description = "Template for data science projects: marimo notebooks paired with the pi coding agent"
 readme = "README.md"
 requires-python = ">=3.13"
+# Only what the template itself uses. Nothing here is speculative: an unused
+# dependency still has to resolve, build and be audited. `uv add <pkg>` when you
+# need one — duckdb for marimo's SQL cells, plotly, statsmodels and an Excel
+# reader were all declared here and imported nowhere, so they are gone.
 dependencies = [
     # notebook runtime
     "marimo[recommended]>=0.17",
     # data
     "numpy>=2.2",
-    "pandas>=2.2",
     "polars>=1.20",
+    # pandas and pyarrow are not imported by petri itself: seaborn takes pandas
+    # frames, and polars' .to_pandas() needs pyarrow to convert.
+    "pandas>=2.2",
     "pyarrow>=19",
-    "duckdb>=1.1",
     "scipy>=1.15",
     # plotting
     "matplotlib>=3.10",
     "seaborn>=0.13",
-    "plotly>=6.0",
     # R interop (requires a local R installation; see petri/docs/rpy2.md)
     "rpy2>=3.6",
-    "openpyxl>=3.1.5",
-    "fastexcel>=0.20.2",
+    # Provider SDK for the model configured under [tool.marimo.ai.models]. No
+    # import in this repo; marimo loads it when the AI panel is used.
     "google-genai>=2.14.0",
-    "statsmodels>=0.14.6",
 ]
 
 [dependency-groups]
@@ -85,7 +88,9 @@ auto_reload = "lazy"
 watcher_on_save = "lazy"
 on_cell_change = "autorun"
 reactive_tests = true
-show_tracebacks = false
+# An agent reads the traceback to fix the cell, and it is the notebook output it
+# can actually see. Hiding it leaves the error message with no context.
+show_tracebacks = true
 default_csv_encoding = "utf-8"
 default_sql_output = "auto"
 output_max_bytes = 8_000_000
@@ -101,8 +106,8 @@ autosave_delay = 1000
 # ruff owns formatting; marimo's formatter would fight it on every save.
 format_on_save = false
 
-[tool.marimo.formatting]
-line_length = 79
+# No [tool.marimo.formatting]: with format_on_save off, marimo never formats, and
+# the line_length that used to sit here said 79 against ruff's 88.
 
 [tool.marimo.ai]
 enabled = true

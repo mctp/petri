@@ -2,17 +2,25 @@
 
 Instructions for pi and Claude Code. Python (`uv`) and R (`renv`).
 
-Four things, easily confused:
+Five things, easily confused:
 
 | Name | Kind | What it is | Where |
 |---|---|---|---|
 | **marimo** | runtime | reactive cells, a dependency graph, one kernel per notebook | Marimo, below |
 | **petri** | API | the provenance layer: load, save, preserve, check | Petri API, below |
 | **marimo-pair** | skill | how you drive that kernel: `execute-code.sh` to run code, `cm` to change cells | `petri/skills/marimo-pair/` |
-| **analysis** | skill | how to grow a notebook: which cells, when to ask, when to promote | `petri/skills/analysis/` |
+| **petri-analysis** | skill | how to grow a notebook: which cells, when to ask, when to promote | `petri/skills/petri-analysis/` |
+| **petri-init** | skill | how to fill the empty folders from `petri/examples/` | `petri/skills/petri-init/` |
 
-**Load the `analysis` skill before data work.**
+**Load the `petri-analysis` skill before data work.**
 **Load the `marimo-pair` skill before working with marimo notebooks.**
+**Load `petri-init` when `notebooks/` or `scripts/` is empty** — a fresh clone
+ships them that way, so an import from `scripts/` failing is that, not a bug.
+
+The two petri skills carry the prefix because they are this template's own.
+`marimo-pair` keeps its upstream name: it is a fork of a published skill, tracked
+in [petri/docs/marimo-pair-fork.md](petri/docs/marimo-pair-fork.md), and renaming
+it would hide where it came from.
 
 ---
 
@@ -57,7 +65,7 @@ When marimo is running:
 
 1. `make nb` starts the server (`marimo edit notebooks/ --no-token`).
 2. Open it in the browser. The server root is `notebooks/`, so omit that prefix:
-   `open "http://localhost:2718/?file=coding_patterns.py"`.
+   `open "http://localhost:2718/?file=<name>.py"`.
 3. Find the session id, one per open notebook:
    `curl -s http://localhost:2718/api/sessions | jq -r 'to_entries[] | "\(.key)  \(.value.filename)"'`
 4. Run code against that kernel, passing the session id:
@@ -88,9 +96,11 @@ With one notebook open you can omit `--session`; the script selects it.
 ## Petri API
 
 An **artifact** is a file petri wrote together with a **manifest** beside it: a
-JSON record of the declared inputs, the output hashes, the producing cell and the
-git commit, which `check()` verifies. There are two kinds — a **shared table**
-that other notebooks read, and a **preserved deliverable** that people read.
+JSON record of the declared inputs, the output hashes and the producing cell,
+which `check()` verifies. Every field is a function of what it describes, so the
+manifest changes only when the artifact does. There are two kinds — a **shared
+table** that other notebooks read, and a **preserved deliverable** that people
+read.
 
 The functions below are the only writers of `data/shared/` and `data/preserved/`. Writing
 those directories any other way leaves a file with no manifest, which is not an
@@ -98,7 +108,7 @@ artifact and cannot be verified.
 
 | Call | Does |
 |---|---|
-| `load_external(relpath)` | read a tabular file from `data/external/` |
+| `load_external(relpath)` | read a delimited text file (`.csv`, `.tsv`, `.txt`) from `data/external/`; anything else goes through `external_path()` |
 | `external_path(relpath)` | path to an external file, for `inputs=` |
 | `save_shared(data, name, *, inputs)` | publish a shared table; `inputs` is required |
 | `load_shared(name)` | read a shared table, verified against its manifest |
@@ -112,8 +122,9 @@ artifact and cannot be verified.
 | `check()` | verify every manifest; what `make check` runs |
 
 `save_shared` returns the file it wrote; each `preserve_*` returns the bundle
-directory. All three `preserve_*` also take `title=` and `inputs=`, and a
-`filename=` — pass a distinct one for a second figure or table in the same cell,
+directory. Every writer takes `title=`, one name for one thing across the whole
+API and the field the manifest records. Each `preserve_*` also takes `inputs=` and
+a `filename=` — pass a distinct one for a second figure or table in the same cell,
 or the two overwrite each other.
 
 A `save_shared` name becomes a filename. A `preserve_*` name must be the name of
@@ -122,17 +133,20 @@ among the notebook's cell names. Every column of a shared table must survive the
 CSV round trip, so `save_shared` rejects a dtype carrying a time zone, a
 non-default time unit, a decimal precision or an enum's categories.
 
-Path constants: `PROJECT_ROOT`, `DATA_DIR`, `EXTERNAL_DIR`, `SHARED_DIR`,
-`PRESERVED_DIR`, `CACHE_DIR`. The last four all live under `data/`. Failures raise `ArtifactError`; `check()` returns a `CheckReport`
-with `.ok`, `.errors` and `.warnings`.
+Path constants: `PROJECT_ROOT`, `EXTERNAL_DIR`, `SHARED_DIR`, `PRESERVED_DIR`,
+`CACHE_DIR`. The last four live under `data/`; there is no `DATA_DIR`, which is
+their parent rather than a layer. A relative path passed to `inputs=` is relative
+to `PROJECT_ROOT`, never to the working directory. Failures raise `ArtifactError`;
+`check()` returns a `CheckReport` with `.ok`, `.errors` and `.warnings`.
 
-**Absent by design:** no `load_preserved()` (a preserved artifact is terminal),
-no `save_external()` (`data/external/` is read-only), and no `save_preserved()` — the
-three `preserve_*` functions take its place, since each writes different bundle
-contents.
+**Absent by design:** no `load_preserved()`, no `save_external()`, no
+`save_preserved()`, and no inference of `inputs=` or of a cell's name — you declare
+both, and `check()` verifies them. `architecture.md`
+has the full out-of-scope list; **read it before adding to this API**, because
+most additions are already answered there.
 
-The `analysis` skill covers how to use this API. `petri/docs/architecture.md` section 5
-covers why it is shaped this way.
+The `petri-analysis` skill covers how to use this API. `petri/docs/architecture.md` section 5
+covers why it is shaped this way, and pins the manifest schema field by field.
 
 ### R interop
 
@@ -149,15 +163,17 @@ from petri.r_bridge import pl_to_r, r_eval, r_set, r_to_pl
 
 ## Folders
 
-The four data directories live under `data/`, each named for the function that
-writes it.
+Three data layers live under `data/`, each named for the function that writes it.
 
 | Directory | Written by | Read by |
 |---|---|---|
-| `data/external/` | nobody | producer notebooks, via `load_external()` |
+| `data/external/` | nobody | the publishing cell, via `load_external()` |
 | `data/shared/` | `save_shared()` | any notebook, via `load_shared()` |
 | `data/preserved/` | `preserve_figure()`, `preserve_table()`, `preserve_file()` | people |
-| `data/cache/` | you | the kernel |
+
+`data/cache/` sits beside them and is not a fourth layer: petri never writes it and
+nothing verifies it. It is scratch space, safe to delete. `mo.persistent_cache`
+writes to `notebooks/__marimo__/cache` unless you pass `save_path=str(CACHE_DIR)`.
 
 Three rules hold on every task, including tasks that are not data work:
 
@@ -168,24 +184,23 @@ Three rules hold on every task, including tasks that are not data work:
 - **`data/preserved/` is terminal.** No notebook reads another notebook's preserved
   artifact. Promote a result with `save_shared()` instead.
 
-`data/cache/` is safe to delete. `mo.persistent_cache` writes to
-`notebooks/__marimo__/cache` by default; pass `save_path=str(CACHE_DIR)` to use
-`data/cache/` instead.
-
 `scripts/` holds your transformations: pure functions, data in and data out.
 No file I/O, no path constants, no marimo imports. A cell loads, calls a
 function, and preserves. An edit here marks the artifacts built from it stale.
 
 `petri/` holds the template's own machinery — the API source, plus `tests/`,
-`docs/` and `skills/`. **New machinery goes there, not at the root.** The skills
-are canonical at `petri/skills/`; `.pi/skills` and `.claude/skills` are symlinks
-to it, so edit the real directory and never copy a skill between the two.
+`docs/`, `skills/`, `init.py` and `examples/`. **New machinery goes there, not at
+the root.** The skills are canonical at `petri/skills/`; `.pi/skills` and
+`.claude/skills` are symlinks to it, so edit the real directory and never copy a
+skill between the two.
 
-The root is reserved for the user's folders and for what a tool insists on
-finding there: `pyproject.toml`, `uv.lock`, `renv.lock`, `.python-version`,
-`Makefile`, `.Rprofile`, `.pre-commit-config.yaml`, `AGENTS.md`, `README.md`.
-The two package libraries are hidden beside each other, `.venv/` and `.renv/`;
-do not write to either.
+`notebooks/`, `scripts/` and the four `data/` directories ship empty — a
+`.gitkeep` and nothing else. `make init [minimal|full]` fills them from
+`petri/examples/`; the `petri-init` skill covers which set to install and how.
+
+Everything else at the root is there because a tool insists on finding it there —
+the lockfiles, the `Makefile`, the dotfiles. Do not add to it, and do not write to
+`.venv/` or `.renv/`.
 
 ---
 
@@ -211,9 +226,9 @@ itself. The ones you need without looking:
 | Command | Purpose |
 |---|---|
 | `make nb` | Start the marimo server |
-| `make shared` | Run producer notebooks (`notebooks/NN_*.py`) in order, then verify |
-| `make check` | Verify artifact provenance; non-zero on drift. Needs `make shared` first on a fresh clone, which ships the manifests without the tables |
-| `make test` | Contracts plus the write path |
+| `make init [minimal\|full]` | Copy examples from `petri/examples/` into the user's empty folders. Never overwrites without `--force` |
+| `make check` | Verify artifact provenance; non-zero on drift. Reports zero artifacts on a project with no data, which is not a failure |
+| `make test` | Contracts plus the write path. The write-path tests skip unless `make init full` has run |
 | `make lint` / `make fmt` | Check or fix formatting |
 
 Python packages: `uv add <pkg>` on the host, or `ctx.packages.add("<pkg>")` in a

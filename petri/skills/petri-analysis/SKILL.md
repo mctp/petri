@@ -1,9 +1,9 @@
 ---
-name: analysis
+name: petri-analysis
 description: Rules for taking data through to deliverables — ingesting and cleaning raw inputs, building shared tables, running statistics, making plots, and preserving figures. Use when analyzing data, making plots, running statistics, harmonizing or cleaning a raw dataset, or producing a new shared table.
 ---
 
-# Analysis
+# petri-analysis
 
 You are writing a notebook. It is a document, read top to bottom, that has to
 stand alone after this session ends.
@@ -13,12 +13,14 @@ filesystem, and what to check before you speak. The API reference and the folder
 rules are in [AGENTS.md](../../../AGENTS.md); kernel mechanics are in
 `marimo-pair`.
 
+If `notebooks/` is empty, suggest `make init`. A fresh clone ships it that way.
+
 ## Reach for the Petri API
 
 Each call in the middle column writes your data **and a manifest beside it**: a
-small JSON file recording the declared inputs, the output hashes, the cell that
-produced it, and the git commit. The manifest is what `check()` verifies and what
-lets another notebook trust the file.
+small JSON file recording the declared inputs, the output hashes and the cell
+that produced it. The manifest is what `check()` verifies and what lets another
+notebook trust the file.
 
 The right column writes the same bytes without one. Nothing downstream can then
 tell what produced the file, which inputs it came from, or whether it is still
@@ -27,7 +29,7 @@ current.
 | When you | Call | Not |
 |---|---|---|
 | need data in an analysis notebook | `load_shared("name")` | `pl.read_csv(...)` |
-| need an unowned input, in a producer notebook | `load_external("file.csv")` | reading `data/external/` directly |
+| need an unowned input, in a publishing cell | `load_external("file.csv")` | reading `data/external/` directly |
 | have a table other notebooks need | `save_shared(df, "name", inputs=[...])` | `df.write_csv(SHARED_DIR / ...)` |
 | have a figure that ships | `preserve_figure(fig, "<cell name>", source_data=df)` | `fig.savefig(...)` |
 | have a table that ships | `preserve_table(df, "<cell name>")` | `df.write_csv(...)` |
@@ -40,6 +42,13 @@ current.
 from a cell or the scratchpad while you work. `make check` runs the same pass and
 exits non-zero, which is the form for the shell and for CI.
 
+`save_shared()` refuses a column it could not give back, because `data/shared/` is
+CSV and the manifest records a dtype by name. A time zone, a time unit other than
+microseconds, a decimal precision, an enum's categories and anything nested are
+all lost, so they are rejected at publication instead of silently dropped on read.
+Cleaning raw timestamps is where this shows up: cast to a naive `Datetime` and keep
+the zone in its own column, or store the value as a string.
+
 ## Cells
 
 Cells have kinds, not a fixed order. Several of each is normal.
@@ -48,7 +57,7 @@ Cells have kinds, not a fixed order. Several of each is normal.
 |---|---|
 | setup | imports, kept together near the top |
 | narrative | `mo.md` or `mo.vstack`, no computation; placed before the step it describes |
-| input | `load_shared()`, or `load_external()` in a producer notebook |
+| input | `load_shared()`, or `load_external()` in a publishing cell |
 | step | computes and displays; anything non-trivial calls a function in `scripts/` |
 
 Edit the cell that owns a name; add a cell for a new name.
@@ -56,6 +65,19 @@ Edit the cell that owns a name; add a cell for a new name.
 Any step becomes a deliverable in place: name the cell to match the artifact and
 call `preserve_*` inside it. The bundle is `data/preserved/<notebook>/<cell name>/`, so
 the cell stays where it is in the document.
+
+### Passing a table between cells
+
+marimo registers a dependency only through a cell argument. `save_shared()` and
+`load_shared()` are file I/O and invisible to the graph, so a reader can run
+before its writer. Return the path `save_shared()` gives you, and take it as an
+argument wherever you read that table back.
+
+### Seed before you preserve
+
+A deliverable has to render the same bytes twice. Seed every generator in play, in
+the cell: `np.random.seed()`, `random.seed()`, `set.seed()` in R. `seaborn` has no
+seed of its own; its jitter draws from numpy's.
 
 ## Scratchpad
 

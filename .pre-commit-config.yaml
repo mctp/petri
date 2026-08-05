@@ -7,12 +7,16 @@ default_stages: [pre-commit]
 # sha256 in their manifest. A formatting hook that "fixes" a trailing newline changes the
 # hash and makes `make check` fail against a manifest the same commit wrote —
 # generated, hash-pinned output must never be rewritten in place.
+#
+# petri/examples/data/ is the same files, and it is the copy that is actually
+# committed. end-of-file-fixer appended a newline to a preserved params.json
+# there, taking it from 43 bytes to 44 and breaking the sha256 its own manifest
+# recorded. Both prefixes must be excluded.
 exclude: |
   (?x)^(
     \.renv/activate\.R|
     renv\.lock|
-    data/preserved/|
-    data/shared/
+    (petri/examples/)?data/(preserved|shared)/
   )
 
 repos:

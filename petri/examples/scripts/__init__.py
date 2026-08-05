@@ -10,7 +10,7 @@ Rules:
 - Pure functions only. Data in, data out. No file I/O, no writes, no path
   constants, no marimo imports, no calls into `petri.provenance`. Side effects
   belong in cells, where they are visible and named.
-- Cells stay thin. The producer notebook orchestrates; this package computes.
+- Cells stay thin. The cell orchestrates; this package computes.
   A thin cell also means an edit here does not re-run an expensive chain.
 - Functions here run without a kernel, so you can test them.
 

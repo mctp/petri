@@ -77,7 +77,8 @@ def _(CACHE_DIR, df, mo, pl, plt, sns):
     from scipy import stats
 
     # data/cache/ holds exploratory output and you can delete it. A figure that
-    # ships goes through preserve_figure(). See coding_patterns.py pattern 8.
+    # ships goes through preserve_figure(); `make init full` installs
+    # full_example.py, where pattern 6 shows it.
     plot_path = CACHE_DIR / "py_example_seaborn.png"
 
     p_df = df.to_pandas()

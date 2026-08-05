@@ -1,10 +1,10 @@
 {
-  "cell_code_sha256": "9a7474bdea95a4b8150063af503292325a46abc4e74ab8b98a3d2f22ca8fabab",
+  "cell_code_sha256": "6f8b2ff79ff26125dcef315ada3558204fcf178aa0faea1a67287e92bb587e3b",
   "code_deps": [
     {
       "module": "scripts",
       "path": "scripts/__init__.py",
-      "sha256": "974e9cbb5a708ad632be735d2410f94f15d0cc3bd1b9f788be3567dcb41482a7"
+      "sha256": "c9f05ec8c52ecded38fd0ce7b7ab62a696b27b51c63761ec7a1f09e7b7d37140"
     },
     {
       "module": "scripts.measurements",
@@ -12,13 +12,12 @@
       "sha256": "94fc9f74721e043222dcad9f046ceb8f875f09c4807a3f3798a01dffefb1c4b4"
     }
   ],
-  "created": "2026-08-03T03:16:16+00:00",
-  "git_commit": "1f27de8",
-  "id": "pattern9_batch_table",
+  "created": "2026-08-05T01:05:54+00:00",
+  "id": "pattern7_batch_table",
   "inputs": [],
   "kind": "preserved",
   "manifest_version": 1,
-  "notebook": "notebooks/coding_patterns.py",
+  "notebook": "notebooks/full_example.py",
   "outputs": [
     {
       "filename": "params.json",
@@ -31,15 +30,5 @@
       "size": 354
     }
   ],
-  "schema": {
-    "batch": "String",
-    "group": "String",
-    "intensity": "Float64",
-    "p_value": "Float64",
-    "sample_id": "String"
-  },
-  "title": "Samples ranked by p-value",
-  "tool": {
-    "polars": "1.43.1"
-  }
+  "title": "Samples ranked by p-value"
 }

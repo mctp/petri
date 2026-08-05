@@ -1,16 +1,17 @@
 .DEFAULT_GOAL := help
 
-# Running a notebook headlessly (`python notebooks/00_ingest.py`) puts
+# Running a notebook headlessly (`python notebooks/full_example.py`) puts
 # notebooks/ on sys.path, not the repo root, so `import petri` fails. marimo's
 # own `runtime.pythonpath = ["."]` covers the editor but not script execution.
 export PYTHONPATH := $(CURDIR)
 
-# Producer notebooks rebuild data/shared/. The numeric prefix declares run order —
-# there is no DAG engine, so the sort IS the dependency graph. Everything else
-# under notebooks/ is an analysis notebook and is not run by `make shared`.
-PRODUCERS := $(sort $(wildcard notebooks/[0-9]*.py))
+# `make init full` — the set names are goals, not targets, because make takes no
+# positional arguments. The no-op rule below absorbs them so make does not report
+# "No rule to make target 'full'".
+INIT_SETS := minimal full
+INIT_ARGS := $(filter $(INIT_SETS),$(MAKECMDGOALS))
 
-.PHONY: help setup nb shared test lint fmt check clean r-restore r-snapshot r-status r-install
+.PHONY: help setup init $(INIT_SETS) nb test lint fmt check clean r-restore r-snapshot r-status r-install
 
 help: ## Show available targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -20,6 +21,18 @@ setup: ## Create .venv and R library, install git hooks
 	uv sync
 	uv run pre-commit install
 	$(MAKE) r-restore
+
+# The user's folders ship empty; this fills them from petri/examples/. Existing
+# files are left alone unless --force, so it is safe to re-run. Flags go through
+# ARGS, because make claims a bare `--force` for itself:
+#   make init full ARGS=--force
+#   make init full ARGS=--dry-run
+init: ## Copy template examples into notebooks/, scripts/, data/: make init [minimal|full] [ARGS=--force]
+	uv run python -m petri.init $(INIT_ARGS) $(ARGS)
+
+# Absorbs `minimal`/`full` when they appear as goals alongside `init`.
+$(INIT_SETS):
+	@:
 
 # .env reaches the notebook kernel through marimo's own `runtime.dotenv`, but not
 # the server process, which is what resolves the AI provider key. Load it here so
@@ -31,23 +44,9 @@ lint: ## Lint notebooks and verify formatting
 	uv run ruff check .
 	uv run ruff format --check .
 
-shared: ## Rebuild data/shared/ by running producer notebooks (notebooks/NN_*.py) in order, then verify
-	@if [ -z "$(PRODUCERS)" ]; then \
-		echo "No producer notebooks found (expected notebooks/NN_name.py)."; \
-		echo "The numeric prefix declares run order; see petri/docs/architecture.md."; \
-	else \
-		for nb in $(PRODUCERS); do \
-			echo "==> $$nb"; \
-			uv run python "$$nb" || exit 1; \
-		done; \
-	fi
-	@$(MAKE) --no-print-directory check
-
-test: ## Run the test suite (contracts plus the make shared/check write path)
+test: ## Run the test suite (contracts plus the notebook write path)
 	uv run pytest petri/tests/ -q
 
-# Needs the tables present, so run `make shared` first on a fresh clone:
-# data/shared/ ships its manifests, not its CSVs.
 check: ## Verify artifact and shared-table provenance (exits non-zero on errors)
 	@uv run python -c "import sys, petri; r = petri.check(); print(r); sys.exit(0 if r.ok else 1)"
 

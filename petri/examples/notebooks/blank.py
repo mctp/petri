@@ -43,11 +43,15 @@ This is an **analysis notebook**: it reads `data/shared/` and writes
 
                 Name the cell to match the artifact name. `make check` verifies this and
                 fails after a rename. Keep exploratory plots in the cell and preserve only
-                what ships. See `coding_patterns.py` patterns 7-10.
+                what ships.
 
-                To write a **new** `data/shared/` table, add a producer notebook
-                (`notebooks/NN_name.py`) and run `make shared`. See
-                `00_prepare_measurements.py`.
+                To write a **new** `data/shared/` table, call `save_shared()` in a cell
+                that reads `data/external/` and calls a pure function from `scripts/`.
+                Return the path it gives you and take that path as an argument wherever
+                you read the table back: writing a file is not an edge marimo can see.
+
+                `make init full` installs `full_example.py`, which does all of this end to
+                end — publishing a shared table, then preserving deliverables from it.
 
                 ## External Resources
 

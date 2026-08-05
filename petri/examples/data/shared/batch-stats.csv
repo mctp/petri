@@ -1,0 +1,5 @@
+batch,group,n,mean_intensity,min_p
+A,normal,3,10.1279,1e-300
+B,normal,3,10.7645,4.2e-8
+A,tumor,3,11.6625,1e-300
+B,tumor,3,12.4388,4.2e-8

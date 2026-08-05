@@ -18,24 +18,32 @@ works on are the same object.
 ```bash
 git clone <this-template> my-project && cd my-project
 make setup          # install dependencies and git hooks
+make init full      # copy the examples in (or `make init` for just the notebooks)
 make nb             # start marimo on notebooks/
 ```
 
 Start `pi` in the project root in a second terminal and ask it to pair on the
 notebook.
 
-Run `make shared` once to write the example tables, then open
-`notebooks/coding_patterns.py` for worked examples of every pattern below.
-`make help` lists all targets.
+Your folders ship empty, so nothing has to be deleted before real work starts.
+`make init` fills them from `petri/examples/`:
+
+| | Installs |
+|---|---|
+| `make init` | `blank.py`, `py_example.py`, `r_example.py` — standalone, no data needed |
+| `make init full` | the above plus `full_example.py`, `scripts/`, and the data it reads |
+
+`full_example.py` runs the whole pipeline in one notebook: it reads `data/external/`,
+calls `scripts/`, publishes to `data/shared/`, then consumes that table and writes
+deliverables to `data/preserved/`. Nothing is overwritten on a re-run unless you
+pass `--force`. `make help` lists all targets.
 
 ## Layout
 
-Yours:
+Yours, empty until `make init`:
 
 ```
-notebooks/     marimo notebooks. NN_*.py are producers, run by `make shared`
-               00_prepare_measurements.py  producer: external -> scripts -> shared
-               coding_patterns.py          worked examples of every pattern
+notebooks/     marimo notebooks
 scripts/       your transformations: pure functions, no I/O
 data/          your data: external/ shared/ preserved/ cache/ (see below)
 ```
@@ -44,9 +52,11 @@ The template's, under one folder so the root stays yours:
 
 ```
 petri/         paths, provenance, R interop — the API your notebooks import
+  examples/    what `make init` copies out: notebooks/ scripts/ data/
   tests/       provenance contracts and the write-path test
   docs/        architecture, renv, rpy2
-  skills/      marimo-pair and analysis, symlinked into .pi/ and .claude/
+  skills/      marimo-pair, petri-analysis, petri-init — symlinked into .pi/ and .claude/
+  init.py      the `make init` sets
   r-restore.R  wave-by-wave renv restore, run by `make r-restore`
 ```
 
@@ -75,18 +85,21 @@ walks up from the working directory to find it), `Makefile` (bare `make`),
 data/external/  →  scripts/  →  data/shared/  →  notebook  →  data/preserved/
 ```
 
-Each data directory is named for the function that writes it.
+Each data layer is named for the function that writes it.
 
 | Directory | Written by | Read by | Git |
 |---|---|---|---|
-| `data/external/` | nobody — inputs from outside | producer notebooks | ignored |
+| `data/external/` | nobody — inputs from outside | the cell that publishes | ignored |
 | `data/shared/` | `save_shared()` | any notebook | manifests only |
 | `data/preserved/` | `preserve_figure()`, `preserve_table()`, `preserve_file()` | people | tracked |
-| `data/cache/` | you | the kernel | ignored |
 
 `data/shared/` is the only channel between notebooks. `data/preserved/` holds
 deliverables: a figure bundle is a PDF, a PNG, the plotted source data, and a
 manifest. Every write records provenance, and `make check` verifies it.
+
+`data/cache/` sits beside the three but is not a layer — petri never writes it and
+nothing verifies it. It is scratch space with a stable path, ignored by git, and
+safe to delete.
 
 See [petri/docs/architecture.md](petri/docs/architecture.md) for the design and
 `petri/provenance.py` for the API.
@@ -94,7 +107,7 @@ See [petri/docs/architecture.md](petri/docs/architecture.md) for the design and
 ## Commands
 
 ```bash
-make shared     # run producer notebooks, then verify
+make init full  # copy the examples into notebooks/, scripts/, data/
 make check      # verify artifacts against their manifests
 make test       # contracts and the write path
 make lint       # ruff check and format
@@ -137,7 +150,7 @@ the rest of it, and each agent's entry point is a symlink — one copy, two
 readers, and neither tool's directory owns the content:
 
 ```
-petri/skills/             the skills themselves: marimo-pair, analysis
+petri/skills/             the skills themselves: marimo-pair, petri-analysis, petri-init
 .pi/skills       -> ../petri/skills
 .claude/skills   -> ../petri/skills
 CLAUDE.md        -> AGENTS.md

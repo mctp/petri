@@ -11,10 +11,12 @@ is covered by test_write_path.py.
 
 from __future__ import annotations
 
+import importlib
 import inspect
 import io
 import json
 import os
+import sys
 from pathlib import Path
 
 import polars as pl
@@ -22,7 +24,12 @@ import pytest
 
 import petri
 from petri import provenance as A
+from petri.init import EXAMPLES_DIR
 from petri.paths import PROJECT_ROOT
+
+# The template's own copy of the worked example. notebooks/ ships empty, so tests
+# that need a real notebook to parse read it from petri/examples/ instead.
+EXAMPLE_NOTEBOOK = EXAMPLES_DIR / "notebooks/full_example.py"
 
 # --- the CSV standard --------------------------------------------------------
 
@@ -50,6 +57,28 @@ def test_csv_pins_the_ambiguous_settings():
     assert A.CSV_OPTS["include_bom"] is False
     assert A.CSV_OPTS["include_header"] is True
     assert A.CSV_OPTS["date_format"] == "%Y-%m-%d"
+
+
+def test_every_temporal_format_is_pinned():
+    """A Polars default that round-trips today is still written down nowhere.
+
+    time_format was left unpinned while date and datetime were pinned. It worked,
+    but if that default ever changed, a Time column's bytes would change on a
+    rebuild that computed nothing, and check() would report drift against a
+    manifest the same content had produced.
+    """
+    for option in ("date_format", "datetime_format", "time_format"):
+        assert option in A.CSV_OPTS, option
+
+
+def test_time_survives_the_pinned_format():
+    df = pl.DataFrame({"t": pl.Series(["12:34:56.789012"]).str.to_time()})
+    assert A._unrestorable_columns(df) == []
+    restored = pl.read_csv(
+        io.StringIO(A._csv_bytes(df).decode()),
+        schema_overrides=A._schema_overrides(A._schema_of(df)),
+    )
+    assert restored["t"].to_list() == df["t"].to_list()
 
 
 def test_csv_rejects_non_polars_input():
@@ -121,6 +150,32 @@ def test_save_shared_rejects_a_dtype_it_cannot_give_back():
         A.save_shared(df, "tz-table", inputs=[])
 
 
+def test_save_shared_rejects_a_frame_with_no_columns():
+    """It published and verified, then failed in whoever read it.
+
+    A zero-column frame writes a CSV of one newline, which pl.read_csv rejects
+    with NoDataError — so save_shared succeeded, check() passed, and load_shared
+    raised in a different notebook. Zero *rows* is fine and stays allowed: the
+    header carries the columns and the schema restores their dtypes.
+    """
+    with pytest.raises(A.ArtifactError, match="no columns"):
+        A.save_shared(pl.DataFrame({}), "empty-table", inputs=[])
+
+
+def test_a_zero_row_table_still_round_trips():
+    """The other half of the rule above: no rows is not the same as no columns."""
+    df = pl.DataFrame(
+        {"a": pl.Series([], dtype=pl.Int64), "d": pl.Series([], dtype=pl.Date)}
+    )
+    assert A._unrestorable_columns(df) == []
+    restored = pl.read_csv(
+        io.StringIO(A._csv_bytes(df).decode()),
+        schema_overrides=A._schema_overrides(A._schema_of(df)),
+    )
+    assert restored.height == 0
+    assert restored.schema == df.schema
+
+
 # --- identity and hashing ----------------------------------------------------
 
 
@@ -145,37 +200,61 @@ def test_notebook_cells_returns_a_list_not_a_dict():
     A dict keyed by name holds one of them and drops the rest, which left the
     shared-producer scan searching an almost empty map.
     """
-    cells = A._notebook_cells(PROJECT_ROOT / "notebooks/coding_patterns.py")
+    # Reads the template's own copy, not an installed one: notebooks/ is empty
+    # until `make init`, and this test must pass on a bare clone.
+    cells = A._notebook_cells(EXAMPLE_NOTEBOOK)
     assert isinstance(cells, list)
     unnamed = [n for n, _ in cells if n == A.UNNAMED_CELL]
     assert len(unnamed) > 1, "fixture should contain several unnamed cells"
-    assert any(n == "pattern8_batch_effect" for n, _ in cells)
+    assert any(n == "pattern6_batch_effect" for n, _ in cells)
 
 
 # --- code dependencies -------------------------------------------------------
 
 
-def test_code_deps_records_project_local_imports():
-    import scripts.measurements  # noqa: F401  (must be in sys.modules)
+@pytest.fixture
+def local_package(tmp_path, monkeypatch):
+    """An importable package that counts as project-local.
 
-    deps = A._code_deps("from scripts.measurements import summarize_batches")
+    `scripts/` ships empty, so these tests cannot import from it on a bare clone,
+    and a fixture module under `petri/tests/` would be skipped by the very
+    containment rule under test — leaving the assertions to pass against an empty
+    list. So build a real package elsewhere and point PROJECT_ROOT at it.
+    `_code_deps` and `_relpath` both read the module global, so one patch covers
+    the containment test and the reported path.
+    """
+    pkg = tmp_path / "sample_pkg"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text("from . import work\n")
+    (pkg / "work.py").write_text("def summarize():\n    return 1\n")
+
+    monkeypatch.setattr(A, "PROJECT_ROOT", tmp_path)
+    monkeypatch.syspath_prepend(str(tmp_path))
+    for name in [n for n in sys.modules if n.startswith("sample_pkg")]:
+        del sys.modules[name]
+    importlib.import_module("sample_pkg.work")
+    yield
+    for name in [n for n in sys.modules if n.startswith("sample_pkg")]:
+        del sys.modules[name]
+
+
+def test_code_deps_records_project_local_imports(local_package):
+    deps = A._code_deps("from sample_pkg.work import summarize")
     paths = {d["path"] for d in deps}
-    assert "scripts/measurements.py" in paths
+    assert "sample_pkg/work.py" in paths
     # The package __init__ runs when a submodule is imported, so an edit there
     # changes the result too.
-    assert "scripts/__init__.py" in paths
+    assert "sample_pkg/__init__.py" in paths
 
 
-def test_code_deps_follows_from_package_import_submodule():
+def test_code_deps_follows_from_package_import_submodule(local_package):
     """`from pkg import mod` names a submodule, not an attribute.
 
-    Recording only `pkg` hashed scripts/__init__.py and left the module that
+    Recording only `pkg` hashed the package __init__ and left the module that
     did the work unhashed, so editing it staled nothing.
     """
-    import scripts.measurements  # noqa: F401
-
-    deps = A._code_deps("from scripts import measurements")
-    assert "scripts/measurements.py" in {d["path"] for d in deps}
+    deps = A._code_deps("from sample_pkg import work")
+    assert "sample_pkg/work.py" in {d["path"] for d in deps}
 
 
 def test_code_deps_excludes_the_template_and_third_party():
@@ -314,10 +393,35 @@ def test_every_default_figure_format_has_a_timestamp_key():
         assert fmt in A._FIG_METADATA
 
 
-def test_unknown_figure_format_is_rejected_before_any_write():
+def test_unknown_figure_format_is_rejected_before_any_render():
+    """The check sits inside the render branch, so it needs a renderable fig.
+
+    A savefig that fails the test if called proves the rejection happens before
+    any format is written, which is the property that matters: a half-rendered
+    bundle would list files the manifest could not describe.
+    """
+
+    class _Fig:
+        def savefig(self, *args, **kwargs):
+            raise AssertionError("rendered before the format was validated")
+
     df = pl.DataFrame({"x": [1]})
     with pytest.raises(A.ArtifactError, match="timestamp-suppression"):
-        A.preserve_figure(object(), "n", source_data=df, formats=("eps",))
+        A.preserve_figure(_Fig(), "n", source_data=df, formats=("eps",))
+
+
+def test_a_path_figure_ignores_formats():
+    """A Path brings its own format, so `formats` must not be consulted.
+
+    Validating it up front rejected the call over an argument it would not read.
+    The Path here does not exist, so reaching that error means `formats` was
+    skipped rather than rejected.
+    """
+    df = pl.DataFrame({"x": [1]})
+    with pytest.raises(A.ArtifactError, match="figure file does not exist"):
+        A.preserve_figure(
+            Path("no-such-figure.eps"), "n", source_data=df, formats=("eps",)
+        )
 
 
 def test_str_src_is_content_not_a_path():
@@ -556,11 +660,43 @@ def test_a_missing_producer_notebook_is_reported_for_shared_too(empty_tree):
 # --- reading back ------------------------------------------------------------
 
 
-def test_list_preserved_accepts_the_notebook_field_it_reports():
-    """list_preserved(notebook=entry["notebook"]) returned [] silently."""
+def test_list_preserved_accepts_the_notebook_field_it_reports(empty_tree):
+    """list_preserved(notebook=entry["notebook"]) returned [] silently.
+
+    Fabricates its own bundle rather than reading `data/preserved/`: the user's
+    folders ship empty, so a project that has not run `make init full` holds no
+    bundles and the assertion had nothing to find.
+    """
+    _, preserved = empty_tree
+    bundle = preserved / "my_nb" / "my_cell"
+    bundle.mkdir(parents=True)
+    figure = bundle / "figure.png"
+    figure.write_bytes(b"not really a png")
+    (bundle / "manifest.json").write_text(
+        json.dumps(
+            {
+                "manifest_version": A.MANIFEST_VERSION,
+                "kind": "preserved",
+                "id": "my_cell",
+                "notebook": "notebooks/my_nb.py",
+                "cell_code_sha256": "deadbeef",
+                "inputs": [],
+                "code_deps": [],
+                "outputs": [
+                    {
+                        "filename": "figure.png",
+                        "sha256": A._sha256_file(figure),
+                        "size": figure.stat().st_size,
+                    }
+                ],
+            }
+        )
+    )
+
     entries = A.list_preserved()
-    assert entries, "fixture repo should hold preserved bundles"
+    assert entries, "the fabricated bundle should be listed"
     notebook = entries[0]["notebook"]
+    # The reported value is a path; the filter takes either it or the bare stem.
     assert A.list_preserved(notebook=notebook), notebook
     assert A.list_preserved(notebook=Path(notebook).stem)
 

@@ -11,18 +11,22 @@ def _():
     import numpy as np
     import polars as pl
     import seaborn as sns
-    from scipy import stats
 
     from petri import (
         CACHE_DIR,
         PROJECT_ROOT,
         ArtifactError,
         check,
+        external_path,
         list_preserved,
+        list_shared,
+        load_external,
         load_shared,
         preserve_figure,
         preserve_file,
         preserve_table,
+        preserved_path,
+        save_shared,
         shared_path,
     )
     from petri.r_bridge import pl_to_r, r_eval, r_set, r_to_pl
@@ -32,7 +36,10 @@ def _():
         CACHE_DIR,
         PROJECT_ROOT,
         check,
+        external_path,
         list_preserved,
+        list_shared,
+        load_external,
         load_shared,
         mo,
         np,
@@ -42,12 +49,13 @@ def _():
         preserve_figure,
         preserve_file,
         preserve_table,
+        preserved_path,
         r_eval,
         r_set,
         r_to_pl,
+        save_shared,
         shared_path,
         sns,
-        stats,
     )
 
 
@@ -57,33 +65,52 @@ def _(PROJECT_ROOT, mo):
         [
             mo.md(
                 """
-                # Python-R Interop, Bioconductor & Visualization Patterns
+                # Full Example — one notebook, end to end
 
-                A reference guide focused on **Python $\\leftrightarrow$ R interop (`r_bridge`)**,
-                **Bioconductor package integration**, **marimo UI/DAG reactivity**, and **figure rendering recipes**.
+                Reads `data/external/`, calls `scripts/`, publishes to `data/shared/`,
+                then consumes that table and writes deliverables to `data/preserved/`.
 
-                Patterns 1-6 use synthetic data. Patterns 7-10 read `data/shared/`, which
-                `notebooks/00_prepare_measurements.py` writes. Run `make shared` first.
+                ```
+                data/external/  ->  scripts/  ->  data/shared/  ->  data/preserved/
+                ```
 
-                ## Interop & Visualization (1-6)
+                **Install this notebook with `make init full`**, which also places
+                `scripts/` and the example data it reads. `make init minimal` leaves it
+                out.
 
-                1. **Interactive Marimo UI Widgets & Reactive DAG** (`mo.ui.slider`, `mo.ui.dropdown`, dynamic reactivity)
-                2. **Python $\\leftrightarrow$ R Data Exchange** (`pl_to_r`, `r_eval`, `r_to_pl` with Polars)
-                3. **Bioconductor Package Interop via `r_bridge`** (`limma` differential analysis on synthetic matrices)
-                4. **R Figure Rendering Recipes** (4 Methods: Disk PNG, In-Memory PNG, Vector SVG, `grdevices` capture)
-                5. **Python Plotting & Statistical Overlays** (`matplotlib` + `seaborn` boxplots, scipy stats)
-                6. **Supervised Clustered Heatmaps** (`sns.clustermap` with Z-score row normalization & category color bars)
+                ## Publishing a shared table
 
-                ## Artifacts & Provenance (7-10)
+                The first two cells are the *producing* side. They are the only cells
+                here that write `data/shared/`, and every pattern below reads what they
+                wrote. Writing a file is not a dependency marimo can see, so those
+                cells return the paths they wrote and the readers take them as
+                arguments. That argument is what puts them in order.
 
-                7. **Consume the Interface Layer** — `load_shared()` verifies and restores dtypes; `00_prepare_measurements.py` writes it
-                8. **Preserving a Deliverable** — `preserve_figure()` writes pdf + png + source data + manifest
-                9. **Deliverable Table + Sidecar** — `preserve_table()` and `preserve_file()` sharing one bundle
-                10. **Verification** — `check()` and `list_preserved()`, the same pass `make check` runs
+                ## Patterns
 
-                Patterns 1-6 write to `data/cache/`, which you can delete. Patterns 7-10 write
-                to `data/shared/` and `data/preserved/`. Exploratory output is never committed. A deliverable
-                carries a manifest and is committed.
+                1. **Interactive UI Widgets & Reactive DAG** (`mo.ui.slider`, `mo.ui.dropdown`)
+                2. **Python $\\leftrightarrow$ R Data Exchange** (`pl_to_r`, `r_eval`, `r_to_pl`)
+                3. **Bioconductor Package Interop** (`limma` differential analysis via `r_bridge`)
+                4. **Supervised Clustered Heatmap** (`sns.clustermap`, Z-scored rows, category color bars)
+                5. **Consume the Interface Layer** — `load_shared()` verifies and restores dtypes
+                6. **Preserving a Deliverable** — `preserve_figure()` writes pdf + png + source data + manifest
+                7. **Deliverable Table + Sidecar** — `preserve_table()` and `preserve_file()` sharing one bundle
+                8. **Verification** — `check()` and `list_preserved()`, the same pass `make check` runs
+
+                Two patterns live in their own notebooks rather than being repeated here,
+                since `make init full` installs those too:
+
+                - **R figure rendering recipes** (four methods: disk PNG, in-memory PNG,
+                  vector SVG, `grdevices` capture) — see `r_example.py`
+                - **Python plotting with statistical overlays** (`seaborn` boxplot,
+                  scipy t-test) — see `py_example.py`
+
+                Patterns 1-4 use synthetic data and write only to `data/cache/`, which you
+                can delete. Patterns 5-8 use the shared table and write `data/preserved/`.
+                Exploratory output is never committed; a deliverable carries a manifest and
+                is committed.
+
+                ## Project Documentation
                 """
             ),
             mo.accordion(
@@ -128,22 +155,95 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
+    mo.md(
+        """
+        ## Publish: `data/external/` -> `scripts/` -> `data/shared/`
+
+        The cell orchestrates; `scripts/` computes. Keep the transformation in
+        `scripts/` as a pure function so it can be tested and so `check()` can hash
+        it: an edit there marks every artifact built from it stale.
+
+        `save_shared()` returns the file it wrote. Return that path, and the cells
+        below that read the table take it as an argument. marimo registers a
+        dependency only through an argument, and that is what puts the cells in
+        order.
+        """
+    )
+    return
+
+
+@app.cell
+def measurements_ranked(CACHE_DIR, external_path, load_external, mo, save_shared):
+    from scripts.measurements import rank_by_significance
+
+    raw = load_external("example_measurements.csv")
+
+    # The cache key covers the block's code and its inputs.
+    with mo.persistent_cache("measurements_ranked", save_path=str(CACHE_DIR)):
+        ranked = rank_by_significance(raw)
+
+    # Outside the block: on a cache hit marimo skips the block and its writes.
+    ranked_csv = save_shared(
+        ranked,
+        "measurements-ranked",
+        inputs=[external_path("example_measurements.csv")],
+        title="Samples ordered by ascending p-value",
+    )
+    return ranked_csv, raw
+
+
+@app.cell
+def batch_stats(external_path, raw, save_shared):
+    from scripts.measurements import summarize_batches
+
+    batch_stats_csv = save_shared(
+        summarize_batches(raw),
+        "batch-stats",
+        inputs=[external_path("example_measurements.csv")],
+        title="Mean intensity and strongest p-value per batch and group",
+    )
+    return (batch_stats_csv,)
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(
+        """
+        | Table | Contents |
+        |---|---|
+        | `data/shared/measurements-ranked` | one row per sample, sorted by p-value |
+        | `data/shared/batch-stats` | one row per batch and group |
+
+        Git tracks the manifests, not the CSV bytes. Run `make check` to verify both
+        against their manifests.
+        """
+    )
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
     # Pattern 1: Interactive Marimo UI Widgets
     samples_per_group = mo.ui.slider(10, 100, 10, value=30, label="samples per group")
     effect_size = mo.ui.slider(0.0, 3.0, 0.2, value=1.2, label="group effect size")
-    palette_choice = mo.ui.dropdown(
-        options=["Set2", "Set1", "viridis", "muted"],
-        value="Set2",
-        label="color palette",
+    cmap_choice = mo.ui.dropdown(
+        options=["vlag", "coolwarm", "RdBu_r", "viridis"],
+        value="vlag",
+        label="heatmap colormap",
     )
 
     mo.vstack(
         [
             mo.md("### Pattern 1: Interactive UI Widgets & Reactive DAG"),
-            mo.hstack([samples_per_group, effect_size, palette_choice]),
+            mo.md(
+                "The sliders feed the synthetic frame used by patterns 2-3; the "
+                "dropdown feeds the heatmap in pattern 4. Moving any of them re-runs "
+                "only the cells downstream of it."
+            ),
+            mo.hstack([samples_per_group, effect_size, cmap_choice]),
         ]
     )
-    return effect_size, palette_choice, samples_per_group
+    return cmap_choice, effect_size, samples_per_group
 
 
 @app.cell(hide_code=True)
@@ -199,11 +299,12 @@ def _(df_synth, mo, pl_to_r, r_eval, r_to_pl):
                 " (`r_bridge`)\n"
                 "Pushed `df_synth` Polars DataFrame to R, computed `z_score` and"
                 " `is_outlier` flags in R (`dplyr`), and pulled back into Polars."
+                " For rendering R figures, see `r_example.py`."
             ),
             df_transformed.head(10),
         ]
     )
-    return (df_transformed,)
+    return
 
 
 @app.cell(hide_code=True)
@@ -303,176 +404,8 @@ def _(CACHE_DIR, mo, np, pl, pl_to_r, r_eval, r_set):
 
 
 @app.cell(hide_code=True)
-def _(CACHE_DIR, df_transformed, mo, r_eval, r_set):
-    # Pattern 4: R Plotting (ggplot2 / ggpubr) — 4 Rendering Methods
-    _ = df_transformed  # marimo DAG dependency
-
-    r_plot_disk = CACHE_DIR / "pattern4_r_ggpubr.png"
-    r_set("plot_path", str(r_plot_disk))
-
-    # Method 1: Persistent File (Disk)
-    r_eval("""
-    suppressPackageStartupMessages(library(ggpubr))
-
-    p_r <- ggboxplot(
-      r_df, x = "group", y = "value",
-      color = "group", palette = "jco", add = "jitter"
-    ) + stat_compare_means(method = "anova")
-
-    ggsave(plot_path, p_r, width = 5.5, height = 4.0, dpi = 150)
-    """)
-    _v1 = mo.image(r_plot_disk.read_bytes(), width=500)
-
-    # Method 2: In-Memory Raw PNG Bytes via R png() device
-    _png_raw = r_eval("""
-    tf <- tempfile(fileext = ".png")
-    png(tf, width = 5.5, height = 4.0, units = "in", res = 150)
-    print(p_r)
-    dev.off()
-    bin <- readBin(tf, "raw", file.info(tf)$size)
-    unlink(tf)
-    bin
-    """)
-    _v2 = mo.image(bytes(_png_raw), width=500)
-
-    # Method 3: In-Memory Vector SVG string via svglite
-    _svg_str = r_eval("""
-    library(svglite)
-    s <- svgstring(width = 5.5, height = 4.0)
-    print(p_r)
-    dev.off()
-    s()
-    """)
-    _v3 = mo.Html(str(_svg_str[0]))
-
-    # Method 4: Direct rpy2 grdevices Capture
-    from rpy2.robjects.lib import grdevices
-
-    with grdevices.render_to_bytesio(grdevices.png, width=550, height=400) as _bio:
-        r_eval("print(p_r)")
-    _v4 = mo.image(_bio.getvalue(), width=500)
-
-    mo.vstack(
-        [
-            mo.md("### Pattern 4: R Figure Rendering Recipes (4 Methods)"),
-            mo.ui.tabs(
-                {
-                    "1. Disk File (PNG)": mo.vstack(
-                        [
-                            mo.md(
-                                "**Method 1: Save to disk via `ggsave` and"
-                                " display with `mo.image`**\n"
-                                "Artifact saved in"
-                                f" `{r_plot_disk.relative_to(CACHE_DIR.parent.parent)}`."
-                            ),
-                            _v1,
-                        ]
-                    ),
-                    "2. In-Memory Raw PNG": mo.vstack(
-                        [
-                            mo.md(
-                                "**Method 2: Render to in-memory PNG raw"
-                                " bytes in R**\n"
-                                "Captures binary PNG data from R temp device"
-                                " without persisting to project output."
-                            ),
-                            _v2,
-                        ]
-                    ),
-                    "3. Vector SVG": mo.vstack(
-                        [
-                            mo.md(
-                                "**Method 3: Render to SVG string via"
-                                " `svglite`**\n"
-                                "Generates scalable vector SVG directly for web"
-                                " rendering with `mo.Html`."
-                            ),
-                            _v3,
-                        ]
-                    ),
-                    "4. rpy2 grdevices Capture": mo.vstack(
-                        [
-                            mo.md(
-                                "**Method 4: In-memory capture via"
-                                " `rpy2.robjects.lib.grdevices`**\n"
-                                "Uses Python context manager"
-                                " (`render_to_bytesio`) to capture graphics"
-                                " device output."
-                            ),
-                            _v4,
-                        ]
-                    ),
-                }
-            ),
-        ]
-    )
-    return
-
-
-@app.cell(hide_code=True)
-def _(CACHE_DIR, df_synth, mo, palette_choice, pl, plt, sns, stats):
-    # Pattern 5: Python Plotting (matplotlib + seaborn) with Scipy Statistics
-    _p_df = df_synth.to_pandas()
-
-    _fig, _ax = plt.subplots(figsize=(6, 4), dpi=150)
-    sns.boxplot(
-        data=_p_df,
-        x="group",
-        y="value",
-        hue="group",
-        palette=palette_choice.value,
-        ax=_ax,
-        width=0.4,
-    )
-    sns.stripplot(
-        data=_p_df,
-        x="group",
-        y="value",
-        color="black",
-        alpha=0.5,
-        jitter=0.2,
-        ax=_ax,
-    )
-
-    # Compute ANOVA via scipy.stats
-    _g_data = [
-        df_synth.filter(pl.col("group") == g)["value"].to_numpy()
-        for g in sorted(df_synth["group"].unique().to_list())
-    ]
-    _f_stat, _p_anova = stats.f_oneway(*_g_data)
-
-    _ax.set_title(f"Python Plot (Seaborn): ANOVA F={_f_stat:.2f}, p={_p_anova:.2e}")
-    sns.despine()
-    _fig.tight_layout()
-
-    _plot_path = CACHE_DIR / "pattern5_python_seaborn.png"
-    _fig.savefig(_plot_path)
-    plt.close(_fig)
-
-    # Summary table in Polars
-    _summary = (
-        df_synth.group_by("group")
-        .agg(
-            pl.col("value").mean().round(3).alias("mean"),
-            pl.col("value").std().round(3).alias("std"),
-            pl.col("value").count().alias("n"),
-        )
-        .sort("group")
-    )
-
-    mo.vstack(
-        [
-            mo.md("### Pattern 5: Python Plotting & Statistical Summary"),
-            mo.image(_plot_path.read_bytes(), width=550),
-            _summary,
-        ]
-    )
-    return
-
-
-@app.cell(hide_code=True)
-def _(CACHE_DIR, mo, np, plt, sns):
-    # Pattern 6: Supervised Clustered Heatmap (seaborn)
+def _(CACHE_DIR, cmap_choice, mo, np, plt, sns):
+    # Pattern 4: Supervised Clustered Heatmap (seaborn)
     import pandas as pd
     from matplotlib.patches import Patch
 
@@ -506,7 +439,7 @@ def _(CACHE_DIR, mo, np, plt, sns):
     _g = sns.clustermap(
         _z_matrix,
         col_colors=_col_colors.to_numpy(),
-        cmap="vlag",
+        cmap=cmap_choice.value,
         center=0,
         figsize=(7, 5.5),
         xticklabels=False,
@@ -523,16 +456,21 @@ def _(CACHE_DIR, mo, np, plt, sns):
         bbox_to_anchor=(1.02, 1),
     )
     _g.fig.suptitle(
-        "Pattern 6: Supervised Clustered Heatmap (`sns.clustermap`)", y=1.02
+        "Pattern 4: Supervised Clustered Heatmap (`sns.clustermap`)", y=1.02
     )
 
-    _heatmap_path = CACHE_DIR / "pattern6_clustermap.png"
+    _heatmap_path = CACHE_DIR / "pattern4_clustermap.png"
     _g.savefig(_heatmap_path, bbox_inches="tight")
     plt.close(_g.fig)
 
     mo.vstack(
         [
-            mo.md("### Pattern 6: Supervised Clustered Heatmap (`seaborn`)"),
+            mo.md("### Pattern 4: Supervised Clustered Heatmap (`seaborn`)"),
+            mo.md(
+                "The colormap comes from the pattern 1 dropdown, so changing it "
+                "re-runs this cell and nothing else. For a boxplot with a scipy "
+                "statistical overlay, see `py_example.py`."
+            ),
             mo.image(_heatmap_path.read_bytes(), width=650),
         ]
     )
@@ -540,63 +478,98 @@ def _(CACHE_DIR, mo, np, plt, sns):
 
 
 @app.cell(hide_code=True)
-def _(ArtifactError, load_shared, mo, shared_path):
-    # Pattern 7: consume the shared layer.
+def _(
+    ArtifactError,
+    batch_stats_csv,
+    list_shared,
+    load_shared,
+    mo,
+    ranked_csv,
+    shared_path,
+):
+    # Pattern 5: consume the shared layer.
     #
-    # An analysis notebook reads data/shared/ only. 00_prepare_measurements.py is the
-    # producing side. load_shared() verifies against the manifest and restores
-    # dtypes, which CSV does not carry.
+    # load_shared() verifies against the manifest and restores dtypes, which CSV
+    # does not carry. Taking ranked_csv and batch_stats_csv as arguments is what
+    # puts this cell after the producing cells: reading a file is invisible to the
+    # dependency graph, so the path the writer returned is the edge.
     #
-    # Git tracks manifests, not CSV bytes, so a fresh clone has no shared
-    # tables. mo.stop() halts this cell and its dependents with one message.
+    # The guard matters for an analysis notebook that has no producer of its own.
+    # Git tracks manifests, not CSV bytes, so a fresh clone has no shared tables.
+    # mo.stop() halts this cell and its dependents with one message.
+    _ = (ranked_csv, batch_stats_csv)
+
     try:
         measurements = load_shared("measurements-ranked")
-        batch_stats = load_shared("batch-stats")
+        batch_summary = load_shared("batch-stats")
         _problem = None
     except ArtifactError as _err:
-        measurements = batch_stats = None
+        measurements = batch_summary = None
         _problem = str(_err)
 
     mo.stop(
         _problem is not None,
         mo.md(
-            "### Pattern 7: Consume the Interface Layer (`data/shared/`)\n\n"
-            "Run `make shared` to write the tables that patterns 7-10 read.\n\n"
+            "### Pattern 5: Consume the Interface Layer (`data/shared/`)\n\n"
+            "Re-run the producing cells above to write the tables that patterns "
+            "5-8 read.\n\n"
             f"```\n{_problem}\n```"
         ),
     )
 
     mo.vstack(
         [
-            mo.md("### Pattern 7: Consume the Interface Layer (`data/shared/`)"),
+            mo.md("### Pattern 5: Consume the Interface Layer (`data/shared/`)"),
             mo.md(
-                "Read from `data/shared/`, written by `00_prepare_measurements.py`. "
+                "Read from `data/shared/`, written by the producing cells above. "
                 f"The sibling `{shared_path('batch-stats').stem}.manifest.json` "
                 "records the input fingerprint, the producing cell's code hash, "
-                "the `code_deps` hash of `scripts/`, the git commit, and the "
-                "Polars schema."
+                "the `code_deps` hash of `scripts/`, and the Polars schema."
             ),
-            mo.ui.table(batch_stats.to_dicts(), selection=None),
+            mo.ui.table(batch_summary.to_dicts(), selection=None),
+            mo.md(
+                "`list_shared()` is the inventory of the interface layer — what a "
+                "notebook may read, without opening `data/shared/` yourself. Each "
+                "entry carries its own `problems`, so a table that no longer "
+                "verifies is visible here before anything reads it."
+            ),
+            mo.ui.table(
+                [
+                    {
+                        "name": _t["name"],
+                        "rows": _t["rows"],
+                        "title": _t["title"],
+                        "problems": len(_t["problems"]),
+                    }
+                    for _t in list_shared()
+                ],
+                selection=None,
+            ),
         ]
     )
     return (measurements,)
 
 
 @app.cell(hide_code=True)
-def pattern8_batch_effect(
+def pattern6_batch_effect(
     load_shared,
     measurements,
     mo,
+    np,
     plt,
     preserve_figure,
     shared_path,
     sns,
 ):
-    # Pattern 8: preserve a deliverable as a figure bundle.
+    # Pattern 6: preserve a deliverable as a figure bundle.
     #
     # The cell name matches the artifact name given to preserve_figure, and
     # `make check` enforces that.
     _summary = load_shared("batch-stats")
+
+    # A deliverable must render the same bytes twice. stripplot's jitter has no
+    # seed of its own; it draws from numpy's.
+    np.random.seed(0)
 
     _fig, _ax = plt.subplots(figsize=(6, 3.4))
     sns.stripplot(
@@ -615,7 +588,7 @@ def pattern8_batch_effect(
     # not carry.
     _bundle = preserve_figure(
         _fig,
-        "pattern8_batch_effect",
+        "pattern6_batch_effect",
         source_data=measurements,
         title="Intensity by group and batch",
         inputs=[shared_path("measurements-ranked")],
@@ -624,7 +597,7 @@ def pattern8_batch_effect(
 
     mo.vstack(
         [
-            mo.md("### Pattern 8: Preserving a Deliverable (`preserve_figure`)"),
+            mo.md("### Pattern 6: Preserving a Deliverable (`preserve_figure`)"),
             mo.md(
                 "Writes `figure.pdf` for submission, `figure.png` for review, "
                 "the plotted rows as `figure-source.csv`, and `manifest.json` into "
@@ -648,18 +621,24 @@ def pattern8_batch_effect(
 
 
 @app.cell(hide_code=True)
-def pattern9_batch_table(measurements, mo, pl, preserve_file, preserve_table):
-    # Pattern 9: deliverable table plus a sidecar in one bundle.
+def pattern7_batch_table(measurements, mo, pl, preserve_file, preserve_table):
+    # Pattern 7: deliverable table plus a sidecar in one bundle.
     #
     # A bundle belongs to a cell. Several preserve_* calls write into one
     # manifest; delete one and the next run removes the file it wrote.
-    from scripts.measurements import rank_by_significance
+    #
+    # Aliased with a leading underscore because the producing cell above already
+    # owns the public name `rank_by_significance`, and marimo allows a name to be
+    # defined in exactly one cell. The import stays here rather than moving to the
+    # imports cell: code_deps is read from this cell's own imports, so hoisting it
+    # would drop the scripts/measurements.py hash from the manifest.
+    from scripts.measurements import rank_by_significance as _rank_by_significance
 
-    _ranked = rank_by_significance(measurements)
+    _ranked = _rank_by_significance(measurements)
 
     preserve_table(
         _ranked,
-        "pattern9_batch_table",
+        "pattern7_batch_table",
         title="Samples ranked by p-value",
     )
 
@@ -670,13 +649,13 @@ def pattern9_batch_table(measurements, mo, pl, preserve_file, preserve_table):
 
     preserve_file(
         _json.dumps({"sort_key": "p_value", "n_rows": _ranked.height}, indent=2),
-        "pattern9_batch_table",
+        "pattern7_batch_table",
         filename="params.json",
     )
 
     mo.vstack(
         [
-            mo.md("### Pattern 9: Deliverable Table + Sidecar (`preserve_*`)"),
+            mo.md("### Pattern 7: Deliverable Table + Sidecar (`preserve_*`)"),
             mo.md(
                 "`preserve_table` writes CSV with the Polars float defaults. "
                 "`float_precision` writes `1e-300` as `0.000000000000` and destroys "
@@ -694,18 +673,32 @@ def pattern9_batch_table(measurements, mo, pl, preserve_file, preserve_table):
 
 
 @app.cell(hide_code=True)
-def _(check, list_preserved, mo):
-    # Pattern 10: verification. This is what `make check` runs.
+def _(check, list_preserved, mo, preserved_path):
+    # Pattern 8: verification. This is what `make check` runs.
     #
     # check() reports content, staleness, identity and provenance drift.
     # list_preserved() reports problems per bundle.
     _report = check()
     _listing = list_preserved()
 
+    # preserved_path() addresses a file inside a bundle by (notebook, cell,
+    # filename) and raises if it is not there. This is how a later cell, another
+    # session, or an agent reaches a deliverable without re-running the cell that
+    # wrote it — the preserve_* return value is only in hand during that run.
+    # There is no loader: it hands back a path to read or display, which is what
+    # keeps data/preserved/ terminal. Ask list_preserved() for the filenames
+    # rather than assuming one, since a bundle holds what its calls wrote.
+    _figure = preserved_path("full_example", "pattern6_batch_effect", "figure.png")
+
     mo.vstack(
         [
-            mo.md("### Pattern 10: Provenance Verification (`check`)"),
+            mo.md("### Pattern 8: Provenance Verification (`check`)"),
             mo.md(f"```\n{_report}\n```"),
+            mo.md(
+                "`preserved_path()` resolved the pattern 6 figure at "
+                f"`{_figure.relative_to(_figure.parents[3])}` "
+                f"({_figure.stat().st_size} bytes) without re-running that cell."
+            ),
             mo.md(
                 "An error makes `make check` exit non-zero. A warning does not. "
                 "A changed `data/external/` input is a warning because petri does not "

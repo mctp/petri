@@ -34,6 +34,11 @@ marimo.log
 # data/shared/     save_shared()    — interface layer; bytes ignored, manifests
 #                                     kept
 # data/cache/      persistent_cache — disposable
+#
+# These govern the user's workspace. The directories ship holding nothing but a
+# .gitkeep, and `make init` fills them, but what the user then writes there is
+# theirs to version: a manifest is committed so a collaborator can verify a table
+# they cannot download.
 data/external/*
 data/cache/*
 data/shared/*
@@ -41,14 +46,19 @@ data/shared/*
 !data/external/.gitkeep
 !data/cache/.gitkeep
 !data/shared/.gitkeep
-# Committed exception: the fixture coding_patterns.py needs as a stand-in for
-# data that would normally arrive from outside. Real inputs stay untracked.
-!data/external/example_measurements.csv
 
 # ---- data/preserved/ (terminal deliverables — tracked wholesale) -----------
 # preserve_figure() / preserve_table() / preserve_file(). Bundles are small by
 # construction: source-data.csv is what was plotted, not the matrix behind it.
 # Nothing here is ignored.
+
+# ---- petri/examples/ (the template's payload — tracked wholesale) ----------
+# What `make init` copies out has to be in git, so the rules above must not reach
+# it. They are all anchored to the repo root by their slashes and do not, but say
+# so explicitly rather than relying on that. The shared CSVs are tracked here
+# although the working copies are not: `make init full` has to land a table beside
+# every manifest it installs, or `check()` reports the output missing.
+!petri/examples/**
 
 # ---- Agent / editor local state -------------------------------------------
 .pi/sessions/

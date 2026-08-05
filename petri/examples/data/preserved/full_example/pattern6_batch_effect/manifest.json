@@ -1,0 +1,35 @@
+{
+  "cell_code_sha256": "1542eed224d98a1bef9d80390729377b85b7038c7c934092fedf72521196f7b4",
+  "code_deps": [],
+  "created": "2026-08-05T01:05:54+00:00",
+  "id": "pattern6_batch_effect",
+  "inputs": [
+    {
+      "kind": "shared",
+      "name": "measurements-ranked",
+      "path": "data/shared/measurements-ranked.csv",
+      "sha256": "16029dd6928ba6630c4a2934d4939065d501e82787a86cd791344507863ea51a"
+    }
+  ],
+  "kind": "preserved",
+  "manifest_version": 1,
+  "notebook": "notebooks/full_example.py",
+  "outputs": [
+    {
+      "filename": "figure-source.csv",
+      "sha256": "16029dd6928ba6630c4a2934d4939065d501e82787a86cd791344507863ea51a",
+      "size": 354
+    },
+    {
+      "filename": "figure.pdf",
+      "sha256": "3519318c3805dfadc8bba9b73ce8544add89e80822d11e6dcc4e2492cc9b60a1",
+      "size": 13176
+    },
+    {
+      "filename": "figure.png",
+      "sha256": "40e803e652de758983d520531757dfd4ca6477f37749584363c5f9652af060c3",
+      "size": 14803
+    }
+  ],
+  "title": "Intensity by group and batch"
+}
