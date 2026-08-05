@@ -134,3 +134,23 @@ make r-restore
 - **Lockfile churn**: `make r-snapshot` records the library exactly; if a
   teammate's diff removes packages, they had a smaller library, not a bug —
   run `make r-restore` before snapshotting.
+- **`lazy loading failed` during restore**, naming a package that the lockfile
+  does list — e.g. `gridExtra` dying on `there is no package called 'rlang'`.
+  Run `make r-restore` a second time: the first pass leaves the missing
+  dependency installed, so the retry succeeds.
+
+  The cause is worth knowing before reaching for a bigger fix. `renv::restore()`
+  installs in topological waves, but it computes them over only the packages it
+  must download or build; a package already in the renv cache is linked into the
+  library up front and left out of the graph. Edges are built with
+  `intersect(deps, packages)`, so dropping that node also drops the constraints
+  it carried. With `gtable` cached and `rlang` not, `gridExtra` loses its
+  inherited dependency on `rlang` and lands in the same wave — and since each
+  wave installs in sorted order, `gridExtra` is attempted first, deterministically.
+  Building it from source loads `gtable`, which needs `rlang`, which is not
+  installed yet.
+
+  This needs a partly-warm cache to trigger, which is why a plain restore is
+  fine almost always. If it turns out to bite people regularly, the fix belongs
+  upstream in renv — cached packages should stay in the graph as already-satisfied
+  nodes — not in a local reimplementation of renv's installer.

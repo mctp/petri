@@ -67,11 +67,8 @@ fmt: ## Auto-fix lint issues and format
 	uv run ruff check --fix .
 	uv run ruff format .
 
-# Wave by wave, not one renv::restore(). A plain restore can start building a
-# package before a transitive dependency is installed; petri/r-restore.R has
-# the mechanism and the error it produces.
-r-restore: ## Install R packages from renv.lock into .renv/library, in dependency order
-	Rscript petri/r-restore.R renv.lock
+r-restore: ## Install R packages from renv.lock into .renv/library
+	Rscript -e 'renv::restore(prompt = FALSE)'
 
 r-install: ## Install R package(s) into the project library: make r-install PKG="ggplot2 bioc::DESeq2"
 	@test -n "$(PKG)" || (echo 'usage: make r-install PKG="<package>..." (e.g. PKG="ggplot2" or PKG="bioc::DESeq2")'; exit 1)

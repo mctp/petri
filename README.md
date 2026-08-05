@@ -96,7 +96,6 @@ petri/         paths, provenance, R interop — the API your notebooks import
   skills/      marimo-pair, petri-analysis, petri-init — symlinked into .pi/ and .claude/
   init.py      the `make init` sets
   server.py    the per-directory marimo port, behind `make nb`
-  r-restore.R  wave-by-wave renv restore, run by `make r-restore`
 .python-version (uv)
 .Rprofile (R sources it from the startup directory)
 .pre-commit-config.yaml
