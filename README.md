@@ -25,6 +25,11 @@ make nb             # start marimo on notebooks/ (port derived from this directo
 Start `pi` in the project root in a second terminal and ask the agent to pair on the
 notebook.
 
+**Multiple tabs open?** The agent attaches to one kernel. If more than one tab
+has the same notebook open, it will ask which session (kernel) to edit. To find
+it, open the hamburger menu (three lines next to settings) → **Pair with an
+agent** and copy the instructions — no commands needed, just look it up.
+
 Your folders ship empty, `make init` to jump-start from `petri/examples/`:
 
 | | Installs |

@@ -59,6 +59,12 @@ session with `bash scripts/discover-servers.sh`, MCP `list_sessions()`, or
 local process context. When multiple sessions are possible, target with
 `--url`, `--port`, or `--session`.
 
+**Ask before targeting.** Confirm which notebook (path) the user wants to
+edit. If several sessions share one file, ask for the session id — the API
+can't identify the active tab. The user can get it from the marimo UI: open
+the hamburger menu (three lines next to settings) → **Pair with an agent** and
+copy the instructions.
+
 If no server is running and the user wants a notebook, start marimo with
 `--no-token` (and without `--headless`) so it auto-registers for discovery. The
 notebook UI must be open before there is an active session for `execute-code`
