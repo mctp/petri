@@ -145,7 +145,7 @@ This template provides `petri/r_bridge.py` to simplify `rpy2` usage in marimo no
 
 ```python
 import polars as pl
-from petri.r_bridge import pl_to_r, r_eval, r_png, r_set, r_to_pl
+from petri.r_bridge import pl_to_r, r_eval, r_png, r_set, r_to_np, r_to_pl
 
 # Python -> R (Polars to R data.frame without pandas)
 pl_to_r(df, "r_df")
@@ -162,6 +162,10 @@ mo.image(r_png("print(p)", width=500, height=400), width=500)
 
 # R -> Python (R data.frame to Polars)
 summary_df = r_to_pl("summary_df")
+
+# R -> Python (R matrix or vector to NumPy ndarray)
+r_eval("mat <- matrix(1:4, nrow = 2)")
+mat = r_to_np("mat")
 ```
 
 Key features of `petri/r_bridge.py`:
@@ -178,6 +182,13 @@ back is still fine — that path never touches rpy2's converters.
 
 Notes for notebook use:
 
+- `r_to_pl(name)` and `r_to_np(name)` take the NAME of an R variable in the
+  global environment, not an expression — `r_to_pl("as.data.frame(mat)")`
+  raises `KeyError`. Assign the object a name in R first.
+- `r_to_pl` reads `.names` and iterates columns, so it handles data.frame-like
+  objects only. Use `r_to_np` for array-like R objects (matrices, vectors): a
+  raw matrix into `r_to_pl` raises `TypeError: 'int' object is not iterable`, so
+  don't coerce a matrix with `as.data.frame()` to fit `r_to_pl`.
 - Import rpy2 in one cell and let other cells reference its names; R is a single
   global interpreter, so treat it as shared mutable state.
 - R's global environment is *not* part of marimo's dataflow graph. If a cell

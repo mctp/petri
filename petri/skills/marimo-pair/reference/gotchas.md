@@ -65,6 +65,17 @@ src = textwrap.dedent(inspect.getsource(SomeClass.some_method))
 tree = ast.parse(src)
 ```
 
+## Editing source files mid-session
+
+The kernel keeps already-imported modules in memory; editing a `.py` file on
+disk doesn't change the running code. After editing any imported module, reload
+it in the scratchpad:
+
+```python
+import importlib
+importlib.reload(my_module)
+```
+
 ## Cached module availability
 
 Some libraries cache optional-dependency availability at import time. Installing

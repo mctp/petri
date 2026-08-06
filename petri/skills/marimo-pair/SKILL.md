@@ -85,10 +85,12 @@ graph, so nothing run there persists or triggers dependents. See
 [execution-context.md](reference/execution-context.md) for the full model,
 the frozen-snapshot rules, and what the `done` event can and cannot carry back.
 
-Multiple sessions are common (one per open notebook). Target explicitly with
+Multiple sessions are common (one per open notebook, plus orphans from
+refreshes and `execute-code` connections). Target explicitly with
 `--session` when more than one exists; `cm.get_context()` binds to the
 targeted session. Check open notebooks with `discover-servers.sh` or
-`list_sessions()` before assuming which notebook is active.
+`list_sessions()` before assuming which notebook is active. **Only the live
+browser session persists to disk** — see "When Changes Are Written".
 
 ## Scratchpad Scope
 
@@ -170,6 +172,29 @@ cleanly. Structural edits (`create_cell`/`edit_cell`) apply on exit;
 `run_cell` executes within that exit sequence. If the context raises, the
 queue is discarded and nothing is written. Disk is not the source of truth
 mid-session — the kernel is.
+
+**Persistence lands only on the browser's live session.** Edits apply to
+whatever session `cm` targets, but the `.py` file is written only by a
+session a browser tab is connected to (autosave). Editing an orphaned or
+disconnected session updates that kernel in memory only — a browser refresh
+reloads from disk and your work silently vanishes. Always target the live
+browser session and confirm by grepping the `.py` file afterward.
+
+**Finding the live session.** `bash scripts/discover-servers.sh` lists
+servers; `curl <url>/api/sessions | jq -r 'to_entries[] | "\(.key) \(.value.filename)"'`
+maps session ids to filenames. Browser refreshes and `execute-code`
+connections spawn extra sessions, so several may share one file; the one the
+user has open is usually the newest. Target it with `--session <id>`, then
+verify the change hit disk.
+
+**Re-applying on a fresh session.** A freshly-loaded session treats unread
+cells as stale, so `edit_cell`/`create_cell` raise `StaleCellError`. When
+you're intentionally rewriting known content, pass
+`skip_staleness_check=True` to `cm.get_context(...)`.
+
+**In-context reads are snapshots.** `ctx.cells[...]` is captured when the
+context opens, so reading status/errors inside it shows the pre-edit state.
+To see the applied result, read again in a fresh context.
 
 `create_cell` currently defaults to `hide_code=True`, which collapses the code
 editor in the UI. Pass `hide_code=False` if the user wants created cells to
@@ -265,6 +290,11 @@ their globals.
 Running one cell automatically re-runs its reactive descendants, so prefer
 targeted `run_cell` calls over repeated full runs.
 
+To re-run the whole notebook, iterate `ctx.cells` (the ordered document view,
+notebook order) and call `run_cell` on each. `ctx.graph` is the dataflow view,
+not the run order. Reactivity backstops the document order: dependents re-run
+automatically, so a single ordered pass is a correct full re-run.
+
 ## Writing Notebook Changes
 
 The graph contract keeps marimo able to run and save the notebook. Passing
@@ -280,7 +310,10 @@ dependencies, and UI model. Don't be lazy. Avoid one-off workarounds that pass
 Submit the code that belongs in the cell.
 
 - **Submit cell contents** - `create_cell` and `edit_cell` take cell contents,
-  not saved-file `@app.cell` wrappers.
+  not saved-file `@app.cell` wrappers. No `@app.cell` decorator, no explicit
+  `return` line: marimo derives the defs and auto-generates the `return` from
+  the public names it parses. Adding one yourself is a
+  `SyntaxError: 'return' outside function`.
 - **Read before replacing** - for now, another editor may change a cell between
   scratchpad calls. Before `edit_cell`, read the current body from
   `ctx.cells[...]` and submit the full replacement.

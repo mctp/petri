@@ -12,6 +12,7 @@ from .paths import PROJECT_ROOT
 os.chdir(PROJECT_ROOT)
 os.environ.setdefault("RPY2_CFFI_MODE", "ABI")
 
+import numpy as np
 import polars as pl
 import rpy2.robjects as ro
 
@@ -77,11 +78,22 @@ def r_to_pl(r_var_name: str) -> pl.DataFrame:
         )
 
 
+def r_to_np(r_var_name: str) -> np.ndarray:
+    """Pull an R matrix or vector from the global environment into a NumPy ndarray.
+
+    For array-like R objects only (matrices, vectors). Tabular R objects
+    (data.frames) belong in `r_to_pl` instead.
+    """
+    with _conv.context():
+        return np.asarray(ro.globalenv[r_var_name])
+
+
 __all__ = [
     "PROJECT_ROOT",
     "pl_to_r",
     "r_eval",
     "r_png",
     "r_set",
+    "r_to_np",
     "r_to_pl",
 ]

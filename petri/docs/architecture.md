@@ -29,11 +29,15 @@ Embedding R inside Python using `rpy2` within a reactive, multi-threaded noteboo
 3. **Thread-Safe Conversion Rules (`ContextVar`)**:
    - `rpy2` stores type conversion rules in a Python `contextvars.ContextVar`.
    - Because marimo runs cells in separate execution contexts, calling `rpy2` without context wrapping causes `NotImplementedError: Conversion rules ... appear to be missing`.
-   - `petri/r_bridge.py` wraps all R operations (`r_eval`, `r_set`, `pl_to_r`, `r_to_pl`, `r_png`) inside `with _conv.context():`, keeping notebook cell code clean and error-free.
+   - `petri/r_bridge.py` wraps all R operations (`r_eval`, `r_set`, `pl_to_r`, `r_to_pl`, `r_to_np`, `r_png`) inside `with _conv.context():`, keeping notebook cell code clean and error-free.
    - This is why graphics capture belongs in the bridge too. `rpy2.robjects.lib.grdevices` calls `importr("grDevices")` at *import* time, so a cell that imports it directly raises the missing-rules error before drawing anything. `r_png()` performs that import inside the context, which is also why its import sits in the function body rather than at module scope.
 
 4. **Polars Data Transfers**:
    - Transfers data to/from R directly using `ro.DataFrame`, `ro.StrVector`, and `ro.FloatVector` without a `pandas` dependency or `pandas2ri` overhead.
+   - The R→Python conversion is honest to the R object type: tabular R objects
+     (data.frames) go through `r_to_pl` → Polars, while array-like R objects
+     (matrices, vectors) go through `r_to_np` → NumPy. Two separate functions,
+     so a call's return type is always predictable.
 
 ---
 
