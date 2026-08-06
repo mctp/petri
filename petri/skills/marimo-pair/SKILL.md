@@ -286,6 +286,17 @@ ctx.graph.descendants(cid)  # cells that re-run when this one changes
 ctx.graph.ancestors(cid)  # cells this one depends on
 ```
 
+Other lookups and moves:
+
+```python
+ctx.find_cell_defining_object(obj)  # cell whose defs bound this exact object, or None
+ctx.cells.find("substring")  # cells whose code contains it
+ctx.cells.grep("pattern")  # cells matching a regex
+ctx.move_cell(
+    "imports", before="analysis"
+)  # reposition; before=/after=, or neither to append
+```
+
 In marimo, deletes are *destructive* so it can be useful to query the
 descendants prior to deleting to understand it's impact.
 
