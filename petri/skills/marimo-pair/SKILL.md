@@ -222,6 +222,13 @@ When `cm` submits a cell body, marimo parses its top-level definitions and
 references. A top-level name enters the graph unless it is private with a
 leading underscore.
 
+Think of a cell as a function: its **refs** (the names it references) are the
+parameters it consumes from upstream cells, and its **defs** (the public names
+it defines) are what it returns to downstream cells. marimo wires these into
+the DAG and runs cells in dataflow order, so a variable passes between cells
+implicitly — by name, through the shared kernel namespace. You never call a
+cell or pass arguments; reference the name and marimo connects it.
+
 ```python
 # Public definitions: values, total, i, value, mean
 values = np.array([1, 2, 3])
