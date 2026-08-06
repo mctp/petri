@@ -211,6 +211,10 @@ Notes for notebook use:
   scalar. NumPy arrays raise — use `pl_to_r` for tabular data.
 - Import rpy2 in one cell and let other cells reference its names; R is a single
   global interpreter, so treat it as shared mutable state.
+- Each marimo session's kernel is its own Python process, and rpy2 initializes
+  R exactly once per process — so each session has one embedded R. R state
+  (globals, loaded packages) does **not** cross sessions, and it resets on a
+  kernel restart.
 - R's global environment is *not* part of marimo's dataflow graph. If a cell
   mutates `ro.globalenv`, dependent cells will not re-run automatically. Keep R
   work inside one cell, or pass values back into Python names.

@@ -60,3 +60,12 @@ bash scripts/execute-code.sh --url http://localhost:2718 /tmp/code.py
 
 Discover first. If no server is running and the user wants a notebook, use
 [finding-marimo.md](finding-marimo.md).
+
+## Starting and stopping sessions
+
+- **Start** - `make nb` starts the server; `open "<url>?file=<name>.py"` opens
+  a notebook and creates its session/kernel.
+- **Stop all** - `make nb-stop` stops this project's server and every session.
+- **Stop one** - an agent's normal tooling cannot cleanly stop a single
+  session; the mechanism is documented in
+  [`petri/docs/sessions.md`](../../../docs/sessions.md).
