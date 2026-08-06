@@ -11,9 +11,21 @@ def _():
     import polars as pl
 
     from petri import CACHE_DIR, PROJECT_ROOT
-    from petri.r_bridge import pl_to_r, r_eval, r_png, r_set
+    from petri.r_bridge import pl_to_r, r_eval, r_png, r_set, r_to_np, r_to_pl
 
-    return CACHE_DIR, PROJECT_ROOT, mo, np, pl, pl_to_r, r_eval, r_png, r_set
+    return (
+        CACHE_DIR,
+        PROJECT_ROOT,
+        mo,
+        np,
+        pl,
+        pl_to_r,
+        r_eval,
+        r_png,
+        r_set,
+        r_to_np,
+        r_to_pl,
+    )
 
 
 @app.cell(hide_code=True)
@@ -72,6 +84,26 @@ def _(np, pl, pl_to_r):
     pl_to_r(df, "df")
     df
     return (df,)
+
+
+@app.cell
+def r_to_pl_demo(r_eval, r_to_np, r_to_pl):
+    # Pull data back from R to Python with `r_to_pl` and `r_to_np`.
+    # Tabular R objects (data.frames) -> Polars; array-like (matrices, vectors) -> NumPy.
+    # Both take the NAME of an R variable in the global environment, not an expression.
+
+    # R data.frame -> Polars DataFrame
+    r_eval(
+        "df_pl <- data.frame(id = 1:3, grp = c('a', 'b', 'c'), val = c(1.5, 2.5, 3.5))"
+    )
+    df_roundtrip = r_to_pl("df_pl")
+
+    # R matrix -> NumPy ndarray (a matrix is array-like, not tabular)
+    r_eval("mat <- matrix(1:6, nrow = 2, dimnames = list(NULL, c('m1', 'm2', 'm3')))")
+    mat_np = r_to_np("mat")
+
+    df_roundtrip, mat_np
+    return
 
 
 @app.cell(hide_code=True)
