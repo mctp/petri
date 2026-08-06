@@ -159,7 +159,16 @@ covers why it is shaped this way, and pins the manifest schema field by field.
 ### R interop
 
 ```python
-from petri.r_bridge import pl_to_r, r_eval, r_png, r_set, r_to_np, r_to_pl
+from petri.r_bridge import (
+    pl_to_r,
+    py_to_r,
+    r_eval,
+    r_png,
+    r_set,
+    r_to_np,
+    r_to_pl,
+    r_to_py,
+)
 ```
 
 - **Polars only.** Do not use `pandas`.

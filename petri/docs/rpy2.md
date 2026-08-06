@@ -145,10 +145,22 @@ This template provides `petri/r_bridge.py` to simplify `rpy2` usage in marimo no
 
 ```python
 import polars as pl
-from petri.r_bridge import pl_to_r, r_eval, r_png, r_set, r_to_np, r_to_pl
+from petri.r_bridge import (
+    pl_to_r,
+    py_to_r,
+    r_eval,
+    r_png,
+    r_set,
+    r_to_np,
+    r_to_pl,
+    r_to_py,
+)
 
 # Python -> R (Polars to R data.frame without pandas)
 pl_to_r(df, "r_df")
+
+# Python -> R (native dict/list to R list)
+py_to_r({"name": "alice", "scores": [90.5, 85.0], "meta": {"id": 7}}, "config")
 
 # Evaluate R code in the permanent R session
 r_eval("""
@@ -166,6 +178,10 @@ summary_df = r_to_pl("summary_df")
 # R -> Python (R matrix or vector to NumPy ndarray)
 r_eval("mat <- matrix(1:4, nrow = 2)")
 mat = r_to_np("mat")
+
+# R -> Python (R named list to native dict; recursion handles nesting)
+r_eval("cfg <- list(name = 'bob', scores = c(1.5, 2.5))")
+cfg = r_to_py("cfg")
 ```
 
 Key features of `petri/r_bridge.py`:
@@ -182,13 +198,17 @@ back is still fine — that path never touches rpy2's converters.
 
 Notes for notebook use:
 
-- `r_to_pl(name)` and `r_to_np(name)` take the NAME of an R variable in the
-  global environment, not an expression — `r_to_pl("as.data.frame(mat)")`
-  raises `KeyError`. Assign the object a name in R first.
-- `r_to_pl` reads `.names` and iterates columns, so it handles data.frame-like
-  objects only. Use `r_to_np` for array-like R objects (matrices, vectors): a
-  raw matrix into `r_to_pl` raises `TypeError: 'int' object is not iterable`, so
-  don't coerce a matrix with `as.data.frame()` to fit `r_to_pl`.
+- `r_to_pl(name)`, `r_to_np(name)`, and `r_to_py(name)` take the NAME of an R
+  variable in the global environment, not an expression —
+  `r_to_pl("as.data.frame(mat)")` raises `KeyError`. Assign the object a name
+  in R first.
+- The R→Python conversion is honest to the R object type: data.frame →
+  `r_to_pl` (Polars), matrix/vector → `r_to_np` (NumPy), list → `r_to_py`
+  (native `dict` for named lists, `list` otherwise, recursive). `r_to_py` on a
+  matrix or data.frame raises with a hint pointing at `r_to_np`/`r_to_pl`.
+- `py_to_r` is the inverse of `r_to_py`: `dict` → named R list, `list`/`tuple`
+  → R vector (uniform scalars) or unnamed R list (mixed/nested), scalars → R
+  scalar. NumPy arrays raise — use `pl_to_r` for tabular data.
 - Import rpy2 in one cell and let other cells reference its names; R is a single
   global interpreter, so treat it as shared mutable state.
 - R's global environment is *not* part of marimo's dataflow graph. If a cell

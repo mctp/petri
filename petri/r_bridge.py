@@ -88,12 +88,86 @@ def r_to_np(r_var_name: str) -> np.ndarray:
         return np.asarray(ro.globalenv[r_var_name])
 
 
+def py_to_r(obj: Any, name: str) -> None:
+    """Push a native Python object into R's global environment by name.
+
+    `dict` -> named R list (recursive); `list`/`tuple` -> R vector (uniform
+    scalars) or unnamed R list (mixed/nested); `str`/`int`/`float`/`bool` -> R
+    scalar. NumPy arrays raise: use `pl_to_r` (DataFrames) instead.
+    """
+    with _conv.context():
+        ro.globalenv[name] = _py_to_r(obj)
+
+
+def r_to_py(r_var_name: str) -> Any:
+    """Pull an R object into its natural native Python form.
+
+    Named R list -> `dict` (recursive); unnamed list / atomic vector -> `list`
+    (length-1 vectors scalarize). Matrices and data.frames raise with a hint:
+    they belong in `r_to_np` and `r_to_pl` respectively.
+    """
+    with _conv.context():
+        return _r_to_py(ro.globalenv[r_var_name])
+
+
+def _atomic_vector(items: list) -> Any:
+    """Build an R atomic vector for a uniform list of scalars, else None."""
+    if all(isinstance(x, bool) for x in items):
+        return ro.BoolVector(list(items))
+    if all(isinstance(x, (int, float)) for x in items):
+        if all(isinstance(x, int) for x in items):
+            return ro.IntVector(list(items))
+        return ro.FloatVector([float(x) for x in items])
+    if all(isinstance(x, str) for x in items):
+        return ro.StrVector(list(items))
+    return None
+
+
+def _py_to_r(obj: Any) -> Any:
+    if isinstance(obj, dict):
+        return ro.ListVector({str(k): _py_to_r(v) for k, v in obj.items()})
+    if isinstance(obj, (list, tuple)):
+        if len(obj) == 0:
+            return ro.r.list()
+        vec = _atomic_vector(obj)
+        if vec is not None:
+            return vec
+        return ro.r.list(*(_py_to_r(x) for x in obj))
+    if isinstance(obj, bool):
+        return ro.BoolVector([obj])
+    if isinstance(obj, str):
+        return ro.StrVector([obj])
+    if isinstance(obj, (int, float)):
+        return ro.FloatVector([obj])
+    raise TypeError(f"cannot convert {type(obj).__name__} to R")
+
+
+def _r_to_py(robj: Any) -> Any:
+    rclass = list(robj.rclass) if hasattr(robj, "rclass") else []
+    if "data.frame" in rclass:
+        raise NotImplementedError("data.frame -> use r_to_pl()")
+    if "matrix" in rclass:
+        raise NotImplementedError("matrix -> use r_to_np()")
+    if isinstance(robj, ro.ListVector):
+        names = list(robj.names) if robj.names else None
+        vals = [_r_to_py(x) for x in robj]
+        if names is not None and all(n is not None for n in names):
+            return dict(zip(names, vals, strict=False))
+        return vals
+    lst = np.asarray(robj).tolist()
+    if isinstance(lst, list) and len(lst) == 1:
+        return lst[0]
+    return lst
+
+
 __all__ = [
     "PROJECT_ROOT",
     "pl_to_r",
+    "py_to_r",
     "r_eval",
     "r_png",
     "r_set",
     "r_to_np",
     "r_to_pl",
+    "r_to_py",
 ]

@@ -11,7 +11,16 @@ def _():
     import polars as pl
 
     from petri import CACHE_DIR, PROJECT_ROOT
-    from petri.r_bridge import pl_to_r, r_eval, r_png, r_set, r_to_np, r_to_pl
+    from petri.r_bridge import (
+        pl_to_r,
+        py_to_r,
+        r_eval,
+        r_png,
+        r_set,
+        r_to_np,
+        r_to_pl,
+        r_to_py,
+    )
 
     return (
         CACHE_DIR,
@@ -20,11 +29,13 @@ def _():
         np,
         pl,
         pl_to_r,
+        py_to_r,
         r_eval,
         r_png,
         r_set,
         r_to_np,
         r_to_pl,
+        r_to_py,
     )
 
 
@@ -103,6 +114,24 @@ def r_to_pl_demo(r_eval, r_to_np, r_to_pl):
     mat_np = r_to_np("mat")
 
     df_roundtrip, mat_np
+    return
+
+
+@app.cell
+def r_dict_list_demo(py_to_r, r_eval, r_to_py):
+    # Pass dicts/lists between Python and R with `py_to_r` and `r_to_py`.
+    # `py_to_r` pushes native Python to R: dict -> named R list, list -> R vector/list.
+    # `r_to_py` pulls an R list back to its native form: named -> dict, unnamed -> list.
+
+    # Python -> R (native dict to a named R list, recursive)
+    py_to_r({"name": "alice", "scores": [90.5, 85.0], "meta": {"id": 7}}, "config")
+    r_eval("cfg_str <- capture.output(str(config))")
+
+    # R -> Python (R named list to a dict, recursion handles nesting)
+    r_eval("rl <- list(x = 1:3, y = c('a', 'b'), z = 7, meta = list(p = 1, q = 2))")
+    config_py = r_to_py("rl")
+
+    config_py
     return
 
 

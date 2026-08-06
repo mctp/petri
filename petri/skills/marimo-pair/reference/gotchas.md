@@ -73,6 +73,7 @@ it in the scratchpad:
 
 ```python
 import importlib
+
 importlib.reload(my_module)
 ```
 
