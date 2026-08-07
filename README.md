@@ -81,6 +81,16 @@ scripts/       your transformations: pure functions, no I/O
 data/          your data: external/ shared/ preserved/ cache/ (see below)
 ```
 
+**All three are gitignored**, so what `make init` installs never gets committed
+back as a second, drifting copy of an example. That also means your own work in
+them is untracked by default. Once a notebook or a transformation is yours rather
+than installed output, put it under version control deliberately — `git add -f
+notebooks/my_analysis.py`, or drop the `notebooks/*` and `scripts/*` lines from
+`.gitignore` if the repo is now your project rather than a copy of the template.
+`scripts/` especially: a manifest records the SHA-256 of the module a cell
+imported, so `make check` errors once that file changes or goes missing, and git
+is the only thing that can bring it back.
+
 The two language toolchains are supported:
 
 ```

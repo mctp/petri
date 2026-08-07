@@ -29,17 +29,17 @@ Embedding R inside Python using `rpy2` within a reactive, multi-threaded noteboo
 3. **Thread-Safe Conversion Rules (`ContextVar`)**:
    - `rpy2` stores type conversion rules in a Python `contextvars.ContextVar`.
    - Because marimo runs cells in separate execution contexts, calling `rpy2` without context wrapping causes `NotImplementedError: Conversion rules ... appear to be missing`.
-   - `petri/r_bridge.py` wraps all R operations (`r_eval`, `r_set`, `pl_to_r`, `py_to_r`, `r_to_pl`, `r_to_np`, `r_to_py`, `r_png`) inside `with _conv.context():`, keeping notebook cell code clean and error-free.
+   - `petri/r_bridge.py` wraps every R operation inside `with _conv.context():`, keeping notebook cell code clean and error-free.
    - This is why graphics capture belongs in the bridge too. `rpy2.robjects.lib.grdevices` calls `importr("grDevices")` at *import* time, so a cell that imports it directly raises the missing-rules error before drawing anything. `r_png()` performs that import inside the context, which is also why its import sits in the function body rather than at module scope.
 
-4. **Polars Data Transfers**:
-   - Transfers data to/from R directly using `ro.DataFrame`, `ro.StrVector`, and `ro.FloatVector` without a `pandas` dependency or `pandas2ri` overhead.
-   - The R→Python conversion is honest to the R object type: data.frames go
-     through `r_to_pl` → Polars, matrices/vectors through `r_to_np` → NumPy,
-     and lists through `r_to_py` → native Python (`dict` for named lists,
-     `list` otherwise). The Python→R inverse is `py_to_r` (native dict/list →
-     R list). Matrices/data.frames passed to `r_to_py` raise with a hint, so
-     each call's return type stays predictable.
+4. **Data Transfers**:
+   - Transfers data to/from R directly with rpy2's vector constructors, without a `pandas` dependency or `pandas2ri` overhead.
+   - Conversion is by shape, in three inverse pairs — `py_to_r`/`r_to_py` for
+     native objects, `np_to_r`/`r_to_np` for arrays, `pl_to_r`/`r_to_pl` for
+     tables. The type of the object decides which one applies, and the wrong one
+     raises instead of reshaping, so each call's return type is predictable. The
+     pairs are tabulated in [rpy2.md](rpy2.md#the-six-converters); the contract,
+     including how `NA` and `None` cross, lives in the `r_bridge.py` docstrings.
 
 ---
 

@@ -11,7 +11,10 @@ symbols in a single dedicated cell keeps the rest of the notebook uncluttered:
 
 R interop is a separate import, since it pulls in rpy2:
 
-    from petri.r_bridge import pl_to_r, r_eval, r_png, r_set, r_to_pl
+    from petri.r_bridge import pl_to_r, r_eval, r_png, r_to_pl
+
+Its six converters come in inverse pairs — `py_to_r`/`r_to_py`,
+`np_to_r`/`r_to_np`, `pl_to_r`/`r_to_pl` — documented in that module.
 """
 
 from .paths import (

@@ -29,7 +29,7 @@ def _():
         save_shared,
         shared_path,
     )
-    from petri.r_bridge import pl_to_r, r_eval, r_set, r_to_pl
+    from petri.r_bridge import pl_to_r, py_to_r, r_eval, r_to_pl
 
     return (
         ArtifactError,
@@ -50,8 +50,8 @@ def _():
         preserve_file,
         preserve_table,
         preserved_path,
+        py_to_r,
         r_eval,
-        r_set,
         r_to_pl,
         save_shared,
         shared_path,
@@ -308,7 +308,7 @@ def _(df_synth, mo, pl_to_r, r_eval, r_to_pl):
 
 
 @app.cell(hide_code=True)
-def _(CACHE_DIR, mo, np, pl, pl_to_r, r_eval, r_set):
+def _(CACHE_DIR, mo, np, pl, pl_to_r, py_to_r, r_eval):
     # Pattern 3: Bioconductor Package Interop (limma) via r_bridge
     _rng = np.random.default_rng(123)
     _n_features, _n_samples = 300, 30
@@ -338,8 +338,8 @@ def _(CACHE_DIR, mo, np, pl, pl_to_r, r_eval, r_set):
     bioc_plot_path = CACHE_DIR / "pattern3_bioc_limma_volcano.png"
     bioc_csv_path = CACHE_DIR / "pattern3_bioc_limma_results.csv"
 
-    r_set("bioc_plot_path", str(bioc_plot_path))
-    r_set("bioc_csv_path", str(bioc_csv_path))
+    py_to_r(str(bioc_plot_path), "bioc_plot_path")
+    py_to_r(str(bioc_csv_path), "bioc_csv_path")
 
     # Execute Bioconductor limma workflow in R
     r_eval("""

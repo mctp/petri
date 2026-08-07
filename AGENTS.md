@@ -160,16 +160,32 @@ covers why it is shaped this way, and pins the manifest schema field by field.
 
 ```python
 from petri.r_bridge import (
+    np_to_r,
     pl_to_r,
     py_to_r,
     r_eval,
     r_png,
-    r_set,
     r_to_np,
     r_to_pl,
     r_to_py,
 )
 ```
+
+Six converters in inverse pairs, chosen by the object's shape. Pass an object to
+the wrong one and it raises, naming the right one; `None` and `NA` cross in both
+directions.
+
+| Python | push | pull |
+|---|---|---|
+| `dict` / `list` / scalar | `py_to_r(obj, name)` | `r_to_py(name)` |
+| NumPy `ndarray` | `np_to_r(arr, name)` | `r_to_np(name)` |
+| Polars `DataFrame` | `pl_to_r(df, name)` | `r_to_pl(name)` |
+
+`r_eval(code)` runs R; `r_png(code)` renders a plot to bytes. The pull functions
+take the NAME of an R variable, not an expression. `r_set(name, value)` is a
+legacy alias for `py_to_r` with the arguments reversed — prefer `py_to_r`. The
+docstrings in `r_bridge.py` are the contract; `petri/docs/rpy2.md` covers
+notebook use.
 
 - **Polars only.** Do not use `pandas`.
 - **Do not call `renv::load()` or `activate.R`** in a cell. `r_bridge` activates
@@ -225,6 +241,9 @@ skill between the two.
 `notebooks/`, `scripts/` and the four `data/` directories ship empty — a
 `.gitkeep` and nothing else. `make init [minimal|full]` fills them from
 `petri/examples/`; the `petri-init` skill covers which set to install and how.
+Git ignores all six, so a `git add notebooks/foo.py` is a silent no-op: the
+default assumption is that a file there is installed output. When the user's own
+notebook or transformation should be versioned, say so and use `git add -f`.
 
 Everything else at the root is there because a tool insists on finding it there —
 the lockfiles, the `Makefile`, the dotfiles. Do not add to it, and do not write to

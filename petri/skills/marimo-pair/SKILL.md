@@ -91,12 +91,13 @@ graph, so nothing run there persists or triggers dependents. See
 [execution-context.md](reference/execution-context.md) for the full model,
 the frozen-snapshot rules, and what the `done` event can and cannot carry back.
 
-Multiple sessions are common (one per open notebook, plus orphans from
-refreshes and `execute-code` connections). Target explicitly with
-`--session` when more than one exists; `cm.get_context()` binds to the
-targeted session. Check open notebooks with `discover-servers.sh` or
-`list_sessions()` before assuming which notebook is active. **Only the live
-browser session persists to disk** — see "When Changes Are Written".
+Multiple sessions are common (one per open notebook, plus orphans left by
+browser refreshes). `execute-code` never adds one: it requires an existing
+session and fails without one. Target explicitly with `--session` when more
+than one exists; `cm.get_context()` binds to the targeted session. Check open
+notebooks with `discover-servers.sh` or `list_sessions()` before assuming which
+notebook is active. **Only the live browser session persists to disk** — see
+"When Changes Are Written".
 
 ## Scratchpad Scope
 
@@ -188,10 +189,11 @@ browser session and confirm by grepping the `.py` file afterward.
 
 **Finding the live session.** `bash scripts/discover-servers.sh` lists
 servers; `curl <url>/api/sessions | jq -r 'to_entries[] | "\(.key) \(.value.filename)"'`
-maps session ids to filenames. Browser refreshes and `execute-code`
-connections spawn extra sessions, so several may share one file; the one the
-user has open is usually the newest. Target it with `--session <id>`, then
-verify the change hit disk.
+maps session ids to filenames. Browser refreshes leave orphans behind, so
+several sessions may share one file, and the API cannot tell you which tab is
+live. Ask the user for the session id — the marimo UI hands it to them under
+**Pair with an agent** (see "Ask before targeting" above). Then target it with
+`--session <id>` and verify the change hit disk.
 
 **Re-applying on a fresh session.** A freshly-loaded session treats unread
 cells as stale, so `edit_cell`/`create_cell` raise `StaleCellError`. When
@@ -292,10 +294,11 @@ Other lookups and moves:
 ctx.find_cell_defining_object(obj)  # cell whose defs bound this exact object, or None
 ctx.cells.find("substring")  # cells whose code contains it
 ctx.cells.grep("pattern")  # cells matching a regex
-ctx.move_cell(
-    "imports", before="analysis"
-)  # reposition; before=/after=, or neither to append
+ctx.move_cell("imports", before="analysis")  # reposition; also after=
 ```
+
+`move_cell` takes exactly one of `before=`/`after=` — neither or both raises
+`ValueError`. A move changes visual order only: no re-execution, no graph change.
 
 In marimo, deletes are *destructive* so it can be useful to query the
 descendants prior to deleting to understand it's impact.

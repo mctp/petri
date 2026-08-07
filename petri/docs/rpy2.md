@@ -146,11 +146,11 @@ This template provides `petri/r_bridge.py` to simplify `rpy2` usage in marimo no
 ```python
 import polars as pl
 from petri.r_bridge import (
+    np_to_r,
     pl_to_r,
     py_to_r,
     r_eval,
     r_png,
-    r_set,
     r_to_np,
     r_to_pl,
     r_to_py,
@@ -161,6 +161,9 @@ pl_to_r(df, "r_df")
 
 # Python -> R (native dict/list to R list)
 py_to_r({"name": "alice", "scores": [90.5, 85.0], "meta": {"id": 7}}, "config")
+
+# Python -> R (NumPy array to R matrix)
+np_to_r(np.arange(6.0).reshape(2, 3), "mat")
 
 # Evaluate R code in the permanent R session
 r_eval("""
@@ -176,13 +179,31 @@ mo.image(r_png("print(p)", width=500, height=400), width=500)
 summary_df = r_to_pl("summary_df")
 
 # R -> Python (R matrix or vector to NumPy ndarray)
-r_eval("mat <- matrix(1:4, nrow = 2)")
-mat = r_to_np("mat")
+mat_scaled = r_to_np("mat")
 
 # R -> Python (R named list to native dict; recursion handles nesting)
 r_eval("cfg <- list(name = 'bob', scores = c(1.5, 2.5))")
 cfg = r_to_py("cfg")
 ```
+
+### The six converters
+
+Three pairs, each one the other's inverse. Which function you call is decided by
+the object's shape, so every call's return type is predictable:
+
+| Python | push | pull | R |
+|---|---|---|---|
+| `dict` / `list` / scalar | `py_to_r(obj, name)` | `r_to_py(name)` | named list, vector, scalar |
+| NumPy `ndarray` | `np_to_r(arr, name)` | `r_to_np(name)` | matrix, array, vector |
+| Polars `DataFrame` | `pl_to_r(df, name)` | `r_to_pl(name)` | `data.frame` |
+
+Pass an object to the wrong one and it raises, naming the right one — nothing
+reshapes itself silently. Missing values cross in both directions: `None`
+becomes the typed R `NA`, and `NA` comes back as `None`.
+
+The docstrings in `petri/r_bridge.py` are the contract, down to the corner
+cases: which dtypes `pl_to_r` carries, what a partly named R list becomes, why an
+`int` sometimes lands in R as a double.
 
 Key features of `petri/r_bridge.py`:
 - Sets working directory to `PROJECT_ROOT` before importing `rpy2`, so `.Rprofile` and `.renv/library/` load once automatically at startup.
@@ -202,13 +223,13 @@ Notes for notebook use:
   variable in the global environment, not an expression —
   `r_to_pl("as.data.frame(mat)")` raises `KeyError`. Assign the object a name
   in R first.
-- The R→Python conversion is honest to the R object type: data.frame →
-  `r_to_pl` (Polars), matrix/vector → `r_to_np` (NumPy), list → `r_to_py`
-  (native `dict` for named lists, `list` otherwise, recursive). `r_to_py` on a
-  matrix or data.frame raises with a hint pointing at `r_to_np`/`r_to_pl`.
-- `py_to_r` is the inverse of `r_to_py`: `dict` → named R list, `list`/`tuple`
-  → R vector (uniform scalars) or unnamed R list (mixed/nested), scalars → R
-  scalar. NumPy arrays raise — use `pl_to_r` for tabular data.
+- Two R shapes have no Python counterpart and raise rather than arrive wrong: a
+  date-time (`POSIXct`, `difftime`) carries a zone or unit the bridge will not
+  invent, and `NA` in an integer, logical or character array has no NumPy
+  equivalent. Convert in R first — `format()`, `as.numeric()` — or pull the
+  object with `r_to_py`.
+- `r_set(name, value)` is a legacy alias for `py_to_r` with the arguments the
+  other way round. It stays because notebooks call it; prefer `py_to_r`.
 - Import rpy2 in one cell and let other cells reference its names; R is a single
   global interpreter, so treat it as shared mutable state.
 - Each marimo session's kernel is its own Python process, and rpy2 initializes

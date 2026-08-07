@@ -12,11 +12,11 @@ def _():
 
     from petri import CACHE_DIR, PROJECT_ROOT
     from petri.r_bridge import (
+        np_to_r,
         pl_to_r,
         py_to_r,
         r_eval,
         r_png,
-        r_set,
         r_to_np,
         r_to_pl,
         r_to_py,
@@ -27,12 +27,12 @@ def _():
         PROJECT_ROOT,
         mo,
         np,
+        np_to_r,
         pl,
         pl_to_r,
         py_to_r,
         r_eval,
         r_png,
-        r_set,
         r_to_np,
         r_to_pl,
         r_to_py,
@@ -123,24 +123,41 @@ def r_dict_list_demo(py_to_r, r_eval, r_to_py):
     # `py_to_r` pushes native Python to R: dict -> named R list, list -> R vector/list.
     # `r_to_py` pulls an R list back to its native form: named -> dict, unnamed -> list.
 
-    # Python -> R (native dict to a named R list, recursive)
+    # Python -> R (native dict to a named R list, recursive), read back so the
+    # output shows what R actually received.
     py_to_r({"name": "alice", "scores": [90.5, 85.0], "meta": {"id": 7}}, "config")
     r_eval("cfg_str <- capture.output(str(config))")
+    config_in_r = r_to_py("cfg_str")
 
     # R -> Python (R named list to a dict, recursion handles nesting)
     r_eval("rl <- list(x = 1:3, y = c('a', 'b'), z = 7, meta = list(p = 1, q = 2))")
     config_py = r_to_py("rl")
 
-    config_py
+    config_in_r, config_py
+    return
+
+
+@app.cell
+def np_to_r_demo(np, np_to_r, r_eval, r_to_np):
+    # Push a NumPy array into R with `np_to_r`, the inverse of `r_to_np`.
+    # 1-D becomes an atomic vector, 2-D a matrix, N-D an array; R is
+    # column-major and the layout is preserved.
+    _arr = np.arange(6.0).reshape(2, 3)
+    np_to_r(_arr, "mat_from_py")
+
+    r_eval("mat_scaled <- mat_from_py * 10")
+    mat_scaled = r_to_np("mat_scaled")
+
+    mat_scaled
     return
 
 
 @app.cell(hide_code=True)
-def _(CACHE_DIR, df, mo, r_eval, r_png, r_set):
+def _(CACHE_DIR, df, mo, py_to_r, r_eval, r_png):
     _ = df  # marimo DAG dependency
     plot_path = CACHE_DIR / "r_example_ggpubr.png"
 
-    r_set("plot_path", str(plot_path))
+    py_to_r(str(plot_path), "plot_path")
 
     # Method 1: Persistent File (Disk Output)
     r_eval(
