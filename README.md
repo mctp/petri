@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="petri/assets/petri-logo.png" alt="petri" width="440">
+</p>
+
 # Petri
 
 A project template for data analysis in [marimo](https://marimo.io) notebooks,
@@ -153,6 +157,7 @@ petri/         paths, provenance, R interop — the API your notebooks import
   examples/    what `make init` copies out: notebooks/ scripts/ data/
   tests/       provenance contracts and the write-path test
   docs/        architecture, renv, rpy2
+  assets/      petri-logo.png
   skills/      marimo-pair, petri-analysis, petri-init — symlinked into .pi/ and .claude/
   init.py      the `make init` sets
   server.py    the per-directory marimo port, behind `make nb`
