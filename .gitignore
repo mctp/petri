@@ -67,6 +67,14 @@ scripts/*
 # every manifest it installs, or `check()` reports the output missing.
 !petri/examples/**
 
+# That re-include is broad enough to undo the tooling rules at the top of this
+# file, which is only correct for the payload itself. Importing an example
+# notebook to check it loads leaves a __pycache__ beside it, and without this it
+# would show up as untracked. Ignored again, after the re-include so it wins.
+petri/examples/**/__pycache__/
+petri/examples/**/.ipynb_checkpoints/
+petri/examples/**/__marimo__/
+
 # ---- Agent / editor local state -------------------------------------------
 .pi/sessions/
 .pi/settings.local.json
