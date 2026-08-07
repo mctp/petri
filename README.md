@@ -7,6 +7,51 @@ The agent does not edit notebook files. It attaches to the running marimo kernel
 and changes cells there. The notebook in your browser and the notebook the agent
 works on are the same object.
 
+## How it works
+
+You work from two places at once — a browser tab for the notebook, a terminal for
+`make` and the agent — and both reach the same running kernel:
+
+```
+                            ┌─────────────┐
+                            │     YOU     │
+                            └──┬───────┬──┘
+                ┌──────────────┘       └──────────────┐
+                │                                     │
+    ┌───────────▼──────────┐              ┌───────────▼──────────┐
+    │      BROWSER         │              │      TERMINAL        │
+    │  the notebook in a   │              │  make + your coding  │
+    │  browser tab         │              │  agent               │
+    │                      │              │                      │
+    │  · write cells       │              │  · make nb    start  │
+    │  · read plots and    │              │  · make check verify │
+    │    tables            │              │  · "add a cell that  │
+    │  · watch them re-run │              │    plots the fit"    │
+    └───────────┬──────────┘              └───────────┬──────────┘
+                │                                     │
+                │ websocket                  execute-code.sh · cm
+                └──────────────────┬──────────────────┘
+                                   ▼
+  ╔═════════════════════════════════════════════════════════════════╗
+  ║          ONE LIVE KERNEL  —  one per open notebook              ║
+  ║                                                                 ║
+  ║    your cells run here · Python + one embedded R                ║
+  ║    you and the agent share it, and it — not the                 ║
+  ║    file on disk — is the source of truth                        ║
+  ╚═════════════╤═════════════════════════════════════╤═════════════╝
+                │ cells import                        │ writes
+    ┌───────────▼──────────┐              ┌───────────▼──────────┐
+    │  petri  ·  scripts/  │              │  notebooks/yours.py  │
+    │  the API + your own  │              │  autosaved — only by │
+    │  pure functions      │              │  the browser's tab   │
+    └──────────────────────┘              └──────────────────────┘
+```
+
+Two consequences worth knowing before you start. The `.py` file is *output* —
+the kernel writes it, so editing it by hand while marimo runs loses the edit.
+And since the agent shares your kernel, a cell it adds appears in your tab
+without a reload.
+
 ## Requirements
 
 - [uv](https://docs.astral.sh/uv/) — Python and virtualenv
@@ -119,8 +164,20 @@ AGENTS.md (agent instructions)
 
 ## Data flow
 
+Data moves one way. A cell loads an external file, passes it through a pure
+function from `scripts/`, and publishes the result — and the two layers petri
+owns get a manifest with every write:
+
 ```
-data/external/  →  scripts/  →  data/shared/  →  notebook  →  data/preserved/
+  data/external/ ──→ scripts/ ──→ data/shared/ ──→ data/preserved/
+   given to you      pure fns      save_shared()    preserve_*()
+   never written                   + manifest       + manifest
+                                       ▲                 ▲
+                                       └────────┬────────┘
+                                                │
+                            make check ─────────┘
+                            re-hashes each artifact,
+                            says what drifted
 ```
 
 Each data layer is named for the function that writes it.
