@@ -167,6 +167,11 @@ their parent rather than a layer. A relative path passed to `inputs=` is relativ
 to `PROJECT_ROOT`, never to the working directory. Failures raise `ArtifactError`;
 `check()` returns a `CheckReport` with `.ok`, `.errors` and `.warnings`.
 
+**When to run `make check`:** `check()` verifies artifact manifests against cell code
+and inputs. **Do not run `make check` after every small analysis step or interactive chat turn.**
+Run it when completing a deliverable milestone, at handoff, or in CI. Constant checks introduce
+long interactive delays.
+
 **Absent by design:** no `load_preserved()`, no `save_external()`, no
 `save_preserved()`, and no inference of `inputs=` or of a cell's name — you declare
 both, and `check()` verifies them. `architecture.md`
@@ -234,6 +239,11 @@ Three data layers live under `data/`, each named for the function that writes it
 `data/cache/` sits beside them and is not a fourth layer: petri never writes it and
 nothing verifies it. It is scratch space, safe to delete. `mo.persistent_cache`
 writes to `notebooks/__marimo__/cache` unless you pass `save_path=str(CACHE_DIR)`.
+**A notebook may only read a cache file it produced itself.** With every cache
+empty, `make run NB=...` must still succeed from raw inputs. That is two
+directories, not one: `rm -rf data/cache/*` and `make clean`, which removes
+`notebooks/__marimo__/`. Clearing only `data/cache/` leaves a
+`mo.persistent_cache` default in place and the run proves nothing.
 
 **Git ignores all of `data/`, manifests included.** `make check` verifies
 provenance where the data is; nothing about it travels through the repository. Do
@@ -306,3 +316,24 @@ itself. The ones you need without looking:
 
 Python packages: `uv add <pkg>` on the host, or `ctx.packages.add("<pkg>")` in a
 live session via `cm`. R packages: `make r-install PKG="pkgname"`.
+
+---
+
+## Subagents
+
+Whatever the harness calls them — pi's `pi-subagents` / `worker`, Claude Code's
+`Agent`:
+
+- **Always run async.** A foreground run blocks the session and aborts on
+  timeout. Subscribe without blocking, or wait explicitly when you need the
+  result.
+- **Hand back code, never binaries.** A subagent returns Python functions or cell
+  statements, not opaque images. Put pure functions in `scripts/` or embed the
+  generative plotting code directly in the cell.
+- **Never load an external cache file into a cell.** A cell generates its figure
+  from live state and calls `preserve_figure(fig, ...)`. Never point
+  `mo.image(...)` or `preserve_file(...)` at a file some other process wrote:
+  nothing in the notebook then produces the deliverable, which is the one thing a
+  manifest is supposed to record.
+- **Keep cell outputs under 5 MB.** marimo rejects large display payloads. Do not
+  pass raw multi-megapixel rasters to `ax.imshow()`; use native vector plots.

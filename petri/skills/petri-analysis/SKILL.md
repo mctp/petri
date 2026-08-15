@@ -38,9 +38,16 @@ current.
 | want to know what exists | `list_shared()`, `list_preserved()` | walking the filesystem |
 | want to know if artifacts are current | `check()` | assuming they are |
 
-`check()` returns a `CheckReport` with `.ok`, `.errors` and `.warnings`, so call it
-from a cell or the scratchpad while you work. `make check` runs the same pass and
-exits non-zero, which is the form for the shell and for CI.
+`check()` returns a `CheckReport` with `.ok`, `.errors` and `.warnings`. Two forms,
+and the difference is cost:
+
+- **`check()` from the scratchpad** is the interactive one. It runs in the kernel
+  you already have, so call it whenever you want to know where things stand.
+- **`make check`** runs the same pass in a new interpreter, re-importing
+  everything, and exits non-zero. That is the form for the shell and for CI.
+  Keep it for a finished deliverable, a handoff or a commit — **not for every
+  analysis step or chat turn**, where the startup cost buys nothing `check()`
+  would not have told you sooner.
 
 `save_shared()` refuses a column it could not give back, because `data/shared/` is
 CSV and the manifest records a dtype by name. A time zone, a time unit other than
@@ -52,6 +59,13 @@ the zone in its own column, or store the value as a string.
 Keep `save_shared()` and `preserve_*()` outside any `mo.persistent_cache` block.
 On a cache hit marimo skips the block and its side effects, so the write never
 happens and nothing reports it.
+
+Cache is disposable, and the notebook has to prove it. With every cache cleared —
+`rm -rf data/cache/*` and `make clean`, which removes the `notebooks/__marimo__/`
+one that `mo.persistent_cache` uses by default — `make run NB=...` must still
+succeed from raw inputs. Never read a cache file the notebook did not write
+itself; a file some other process left there has no provenance, and building a
+deliverable on it means nothing in the notebook produces that deliverable.
 
 ## Cells
 
@@ -82,6 +96,24 @@ argument wherever you read that table back.
 A deliverable has to render the same bytes twice. Seed every generator in play, in
 the cell: `np.random.seed()`, `random.seed()`, `set.seed()` in R. `seaborn` has no
 seed of its own; its jitter draws from numpy's.
+
+### Raw strings for math and plot text
+
+Write narrative cells, Markdown equations and matplotlib labels as raw strings —
+`r"""..."""`, or `rf"""..."""` when interpolating. `"\text{x}"` is a tab followed
+by `ext{x}`, `"$\times$"` renders as `$<tab>imes$`, and `"\nu"` is a newline and a
+`u`. Python warns about an unknown escape, but the ones it does interpret pass
+silently and reach the figure.
+
+### Delegating a figure
+
+A subagent returns code, not assets: a function for `scripts/`, or the cell
+statements that draw the plot. Embed those and preserve the figure the cell
+draws. Pointing `mo.image(...)` or `preserve_file(...)` at a PNG some other
+process wrote leaves a deliverable no cell produces, which is the one thing the
+manifest is meant to rule out. Keep what a cell displays under 5 MB — marimo
+rejects larger payloads, so plot natively rather than `imshow`-ing a
+multi-megapixel raster.
 
 ## Scratchpad
 
