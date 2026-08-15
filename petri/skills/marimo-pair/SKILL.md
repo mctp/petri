@@ -336,11 +336,22 @@ dependencies, and UI model. Don't be lazy. Avoid one-off workarounds that pass
 
 Submit the code that belongs in the cell.
 
-- **Submit cell contents** - `create_cell` and `edit_cell` take cell contents,
-  not saved-file `@app.cell` wrappers. No `@app.cell` decorator, no explicit
-  `return` line: marimo derives the defs and auto-generates the `return` from
-  the public names it parses. Adding one yourself is a
-  `SyntaxError: 'return' outside function`.
+- **Submit cell contents only** - `create_cell` and `edit_cell` take the bare
+  statements inside the cell, never the saved-file wrapper around it. marimo
+  derives the defs and generates the `return` from the public names it parses.
+  Each way of submitting the wrapper fails differently, and the traceback is how
+  you will recognise it:
+
+  | You submitted | You get |
+  |---|---|
+  | `@app.cell` | `NameError: name 'app' is not defined` — the body runs in the kernel namespace, where `app` does not exist |
+  | `def _(mo):` | a function that is defined and never called, so the cell computes nothing and defines no names |
+  | `return (df,)` | `SyntaxError: 'return' outside function` |
+
+- **Use raw strings for LaTeX, plot labels and regexes** - `"\text{x}"` is a tab
+  followed by `ext{x}`; `"$\times$"` renders as `$<tab>imes$`; `"\nu"` is a
+  newline and a `u`. Python warns about the unknown escape, but the damage is the
+  substitution it does make, not the warning. Write `r"""..."""` or `rf"""..."""`.
 - **Read before replacing** - for now, another editor may change a cell between
   scratchpad calls. Before `edit_cell`, read the current body from
   `ctx.cells[...]` and submit the full replacement.

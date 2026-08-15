@@ -51,6 +51,12 @@ When marimo is running:
   widgets in cells. The scratchpad returns text only.
 - **One cell owns a name.** marimo allows a public name to be defined in exactly
   one cell. Use `_private` names for a cell's own intermediates.
+- **Submit bare cell statements.** `ctx.create_cell(...)` and `ctx.edit_cell(...)` take
+  the inner statements of the cell only. Never include `@app.cell`, `def _(...):`, or
+  explicit `return (...)` lines — marimo derives defs and wraps the function automatically.
+- **Use raw strings for LaTeX, plot labels and regexes.** `"\text{x}"` is a tab
+  followed by `ext{x}`, and `"$\times$"` renders as `$<tab>imes$`. Python warns,
+  but the damage is the silent substitution, not the warning. Write `r"""..."""`.
 - **The notebook is the record; chat is the conversation.** Put results in cells:
   data, tables, figures, statistics, and the narrative that explains them.
   Anything a reader needs months from now belongs in a cell. Put in chat what the
