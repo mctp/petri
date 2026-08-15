@@ -49,6 +49,10 @@ all lost, so they are rejected at publication instead of silently dropped on rea
 Cleaning raw timestamps is where this shows up: cast to a naive `Datetime` and keep
 the zone in its own column, or store the value as a string.
 
+Keep `save_shared()` and `preserve_*()` outside any `mo.persistent_cache` block.
+On a cache hit marimo skips the block and its side effects, so the write never
+happens and nothing reports it.
+
 ## Cells
 
 Cells have kinds, not a fixed order. Several of each is normal.
@@ -90,7 +94,9 @@ The scratchpad runs code in the notebook's kernel without adding a cell. Use it 
 - **fix** a cell with `cm`, then re-run it
 
 Nothing there is saved, and a name you define in the scratchpad is invisible to
-cells. When something is worth keeping, write it as a cell. Do not build work up
+cells. `save_shared()` and `preserve_*()` raise there: an artifact is anchored to
+the named cell that wrote it, and the scratchpad is not one. When something is
+worth keeping, write it as a cell. Do not build work up
 in the scratchpad and transcribe it later; transcription is where errors enter.
 
 ## Read every result back

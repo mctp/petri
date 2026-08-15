@@ -187,15 +187,21 @@ owns get a manifest with every write:
 
 Each data layer is named for the function that writes it.
 
-| Directory | Written by | Read by | Git |
-|---|---|---|---|
-| `data/external/` | nobody — inputs from outside | the cell that publishes | ignored |
-| `data/shared/` | `save_shared()` | any notebook | manifests only |
-| `data/preserved/` | `preserve_figure()`, `preserve_table()`, `preserve_file()` | people | tracked |
+| Directory | Written by | Read by |
+|---|---|---|
+| `data/external/` | nobody — inputs from outside | the cell that publishes |
+| `data/shared/` | `save_shared()` | any notebook |
+| `data/preserved/` | `preserve_figure()`, `preserve_table()`, `preserve_file()` | people |
 
 `data/shared/` is the only channel between notebooks. `data/preserved/` holds
 deliverables: a figure bundle is a PDF, a PNG, the plotted source data, and a
 manifest. Every write records provenance, and `make check` verifies it.
+
+**Git ignores all of `data/`, manifests included.** Provenance is verified where
+the data is, by `make check`, rather than shipped through the repository — a
+manifest is a generated file, and you decide what of your own work to version.
+Committing one is deliberate (`git add -f`), worth doing when a collaborator has
+to verify a table they cannot download.
 
 `data/cache/` sits beside the three but is not a layer — petri never writes it and
 nothing verifies it. It is scratch space with a stable path, ignored by git, and
