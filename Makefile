@@ -53,7 +53,7 @@ nb-status: ## Report whether marimo is running for this project
 nb-stop: ## Stop this project's marimo server, leaving other projects alone
 	@uv run python -m petri.server --stop
 
-lint: ## Lint notebooks and verify formatting
+lint: ## Lint everything, including notebooks/, and verify formatting
 	uv run ruff check .
 	uv run ruff format --check .
 
@@ -63,8 +63,11 @@ test: ## Run the test suite (contracts plus the notebook write path)
 check: ## Verify artifact and shared-table provenance (exits non-zero on errors)
 	@uv run python -c "import sys, petri; r = petri.check(); print(r); sys.exit(0 if r.ok else 1)"
 
-fmt: ## Auto-fix lint issues and format
-	uv run ruff check --fix .
+# Both commands write files, so both skip notebooks/. `ruff format` reads its
+# exclusion from [tool.ruff.format]; `ruff check --fix` does not, and needs it
+# here. Fix a notebook through the live kernel with `cm`, never on disk.
+fmt: ## Auto-fix lint issues and format, leaving notebooks/ to marimo
+	uv run ruff check --fix --extend-exclude "notebooks/**" .
 	uv run ruff format .
 
 r-restore: ## Install R packages from renv.lock into .renv/library

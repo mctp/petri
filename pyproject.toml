@@ -45,6 +45,11 @@ default-groups = ["dev"]
 line-length = 88
 target-version = "py313"
 extend-exclude = ["**/__marimo__"]
+# `notebooks/` and `scripts/` are gitignored, and ruff skips gitignored files by
+# default — which silently made `make lint` lint no notebook at all. What ruff
+# covers is a decision for this file, not a side effect of .gitignore, so
+# discovery is explicit and every exclusion below is deliberate.
+respect-gitignore = false
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "PD", "NPY", "RUF"]
@@ -55,8 +60,20 @@ ignore = [
     "F841",   # cell-local names are often outputs, not dead code
 ]
 
+# A notebook is a document, and its narrative cells are prose. An en dash in
+# `mo.md()` is typography, not a homoglyph attack. Only here: in code, RUF001
+# catches a real hazard. `notebooks/**` is root-relative, so the template's own
+# `petri/examples/notebooks/` keeps the full rule set.
+[tool.ruff.lint.per-file-ignores]
+"notebooks/**" = ["RUF001"]
+
 [tool.ruff.format]
 docstring-code-format = true
+# ruff reports on notebooks/ but never rewrites one. The marimo kernel owns
+# those files and overwrites them on save, and a reformat changes the cell text
+# that `check()` hashes into every manifest built from it. marimo is the only
+# writer; `make fmt` excludes them from `--fix` for the same reason.
+exclude = ["notebooks/**"]
 
 [tool.pytest.ini_options]
 markers = ["slow: runs the real make targets in a subprocess"]
