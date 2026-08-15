@@ -93,7 +93,7 @@ pass `--force`. `make help` lists all targets.
 
 ## Conventions
 
-- Notebooks are `.py` files. They diff, review, and run as scripts.
+- Notebooks are `.py` files. They diff, review, and run as scripts (e.g. `make run NB=notebooks/foo.py` or `PYTHONPATH=. uv run python notebooks/foo.py`).
 - Do not edit a notebook file while its kernel runs. The kernel overwrites it.
 - Secrets go in `.env`. Document new keys in `.env.example`.
 - marimo's project settings live in `[tool.marimo]` in `pyproject.toml`. marimo

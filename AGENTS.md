@@ -83,6 +83,18 @@ URL=$(make -s nb-url)        # e.g. http://127.0.0.1:2754
 
 With one notebook open you can omit `--session`; the script selects it.
 
+### Running a notebook headlessly
+
+To execute a notebook headlessly as a script (e.g. for testing or non-interactive runs):
+
+```bash
+make run NB=notebooks/<name>.py
+# or directly:
+PYTHONPATH=. uv run python notebooks/<name>.py
+```
+
+*Note:* Do not run bare `uv run python notebooks/<name>.py` without `PYTHONPATH=.`. Python puts the script's directory (`notebooks/`) on `sys.path[0]`, so `import petri` and `from scripts... import ...` both fail unless the project root is explicitly in `PYTHONPATH`. `make run` exports it, and loads `.env` as well — marimo's `runtime.dotenv` reaches the editor kernel but not a script run, so a notebook that reads a key works in the browser and fails under a bare `uv run`.
+
 ---
 
 ## Security

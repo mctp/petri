@@ -11,7 +11,7 @@ export PYTHONPATH := $(CURDIR)
 INIT_SETS := minimal full
 INIT_ARGS := $(filter $(INIT_SETS),$(MAKECMDGOALS))
 
-.PHONY: help setup init $(INIT_SETS) nb nb-url nb-status nb-stop test lint fmt check clean r-restore r-snapshot r-status r-install
+.PHONY: help setup init $(INIT_SETS) nb nb-url nb-status nb-stop run test lint fmt check clean r-restore r-snapshot r-status r-install
 
 help: ## Show available targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -52,6 +52,14 @@ nb-status: ## Report whether marimo is running for this project
 
 nb-stop: ## Stop this project's marimo server, leaving other projects alone
 	@uv run python -m petri.server --stop
+
+# Loads .env the same way `nb` does. marimo's `runtime.dotenv` reaches the editor
+# kernel but not a script run, so without this a notebook that reads a key works
+# in the browser and fails here — the one place it is meant to be verified.
+run: ## Run a notebook headlessly as a script: make run NB=notebooks/full_example.py
+	@test -n "$(NB)" || (echo 'usage: make run NB=notebooks/<name>.py'; exit 1)
+	@test -f "$(NB)" || (echo "no such notebook: $(NB)"; exit 1)
+	set -a; [ -f .env ] && . ./.env; set +a; uv run python $(NB)
 
 lint: ## Lint everything, including notebooks/, and verify formatting
 	uv run ruff check .
