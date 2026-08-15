@@ -62,7 +62,7 @@ If `check` fails right after an install, suspect the copy, not the notebook.
 
 Then hand off:
 
-- **`make nb`** starts marimo, and the `marimo-pair` skill covers driving it.
+- **`make nb ARGS=--daemon`** starts marimo in the background, and the `marimo-pair` skill covers driving it.
 - The **`petri-analysis`** skill covers the actual data work.
 
 ## What not to do

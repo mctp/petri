@@ -42,7 +42,7 @@ $(INIT_SETS):
 # on one machine never share a port and never stop each other's server. Running
 # this when a server is already up here prints its URL and does nothing else.
 nb: ## Start marimo on notebooks/, or print the URL if it is already running
-	set -a; [ -f .env ] && . ./.env; set +a; PYTHONPATH="$(CURDIR)" uv run python -m petri.server
+	set -a; [ -f .env ] && . ./.env; set +a; PYTHONPATH="$(CURDIR)" uv run python -m petri.server $(ARGS)
 
 nb-url: ## Print this project's marimo URL
 	@uv run python -m petri.server --url

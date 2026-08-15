@@ -23,6 +23,7 @@ if something else holds it, the next free port is used and discovery still works
 because discovery matches on the directory.
 
     python -m petri.server            ensure a server, then exec marimo
+    python -m petri.server --daemon   start marimo in background, wait until it is ours
     python -m petri.server --status   report; exit 0 if one is running here
     python -m petri.server --url      print the base URL and nothing else
     python -m petri.server --stop     stop this project's server, no other
@@ -56,6 +57,14 @@ HOST = "127.0.0.1"
 # a server is found by its directory either way.
 PORT_BASE = 2718
 PORT_SPAN = 1000
+
+# How long `--daemon` waits for the server it started to answer as this
+# project's. Generous on purpose: a cold start imports marimo, matplotlib and
+# rpy2 from a cold page cache, and a premature failure sends the caller into a
+# restart of a server that was coming up fine. Split into two constants so a
+# test can shrink the wait without patching `time`.
+DAEMON_INTERVAL = 0.2
+DAEMON_TIMEOUT = 30.0
 
 
 def servers_dir() -> Path:
@@ -188,6 +197,69 @@ def free_port(root: Path = PROJECT_ROOT) -> int:
     )
 
 
+def marimo_argv(port: int) -> list[str]:
+    """The command that starts marimo here.
+
+    One definition for both callers: the default path execs it, `--daemon`
+    spawns it. Two copies drift the first time a flag is added to one.
+    """
+    return [
+        "marimo",
+        "edit",
+        "notebooks/",
+        "--no-token",
+        "--host",
+        HOST,
+        "--port",
+        str(port),
+    ]
+
+
+def start_daemon(port: int) -> int:
+    """Start marimo in the background, and wait until it answers as ours.
+
+    A healthy /health on this port does not prove the server is ours. free_port()
+    releases its probe socket before the child binds, so another project can take
+    the port in between, and identifying a server by its port is the confusion
+    this whole module exists to avoid. Health is only the cheap poll that says
+    something is listening; server_here() is what confirms the pid, and the
+    working directory is the identity everything else here is built on.
+
+    If a foreign server does hold the port, our child cannot bind and exits,
+    which poll() reports on the next pass.
+    """
+    log_path = PROJECT_ROOT / "marimo.log"
+    try:
+        with open(log_path, "a") as log_file:
+            proc = subprocess.Popen(
+                marimo_argv(port),
+                cwd=str(PROJECT_ROOT),
+                stdout=log_file,
+                stderr=subprocess.STDOUT,
+                start_new_session=True,
+            )
+    except OSError as exc:
+        # marimo is not on PATH: .venv is missing or was never synced. Every
+        # other exit from main() is a sentence, so this one is too.
+        print(f"cannot start marimo: {exc}")
+        print("  `make setup` builds .venv, or run this through `make nb`.")
+        return 1
+
+    for _ in range(int(DAEMON_TIMEOUT / DAEMON_INTERVAL)):
+        time.sleep(DAEMON_INTERVAL)
+        if proc.poll() is not None:
+            print(f"marimo exited immediately (code {proc.returncode}). See {log_path}")
+            return 1
+        if not _healthy(port):
+            continue
+        here = server_here()
+        if here is not None and here.pid == proc.pid:
+            print(f"started marimo for {PROJECT_ROOT} on {here.url} (pid {proc.pid})")
+            return 0
+    print(f"timed out waiting for marimo on port {port}. Check {log_path}")
+    return 1
+
+
 def stop_here(root: Path = PROJECT_ROOT) -> Server | None:
     """Stop this project's server. Never signals another project's.
 
@@ -218,6 +290,12 @@ def main(argv: list[str] | None = None) -> int:
         description="Start, find or stop the marimo server for this project.",
     )
     mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
+        "-d",
+        "--daemon",
+        action="store_true",
+        help="start marimo in background and wait until it is serving here",
+    )
     mode.add_argument("--status", action="store_true", help="report, change nothing")
     mode.add_argument("--url", action="store_true", help="print the base URL only")
     mode.add_argument("--stop", action="store_true", help="stop this project's server")
@@ -265,24 +343,16 @@ def main(argv: list[str] | None = None) -> int:
     port = free_port()
     if port != preferred_port():
         print(f"port {preferred_port()} is taken; using {port}")
+
+    if args.daemon:
+        return start_daemon(port)
+
     print(f"starting marimo for {PROJECT_ROOT} on http://{HOST}:{port}")
     # execvp replaces this process image, so anything still sitting in Python's
     # stdout buffer is discarded rather than written. Every message above was
     # lost when stdout was a file rather than a terminal.
     sys.stdout.flush()
-    os.execvp(
-        "marimo",
-        [
-            "marimo",
-            "edit",
-            "notebooks/",
-            "--no-token",
-            "--host",
-            HOST,
-            "--port",
-            str(port),
-        ],
-    )
+    os.execvp("marimo", marimo_argv(port))
 
 
 if __name__ == "__main__":

@@ -63,8 +63,10 @@ Discover first. If no server is running and the user wants a notebook, use
 
 ## Starting and stopping sessions
 
-- **Start** - `make nb` starts the server; `open "<url>?file=<name>.py"` opens
-  a notebook and creates its session/kernel.
+- **Start** - `make nb ARGS=--daemon` starts the server in the background and
+  returns once it answers as this project's; `open "<url>?file=<name>.py"` opens
+  a notebook and creates its session/kernel. Bare `make nb` runs in the
+  foreground, so it blocks a synchronous tool call until that call times out.
 - **Stop all** - `make nb-stop` stops this project's server and every session.
 - **Stop one** - close its browser tab. There is no clean programmatic way;
   [`petri/docs/sessions.md`](../../../docs/sessions.md) says why.

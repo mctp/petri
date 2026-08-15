@@ -4,7 +4,7 @@ How an agent starts and stops marimo sessions for this project.
 
 | Action | Command / call |
 |---|---|
-| Start the server | `make nb` (or `nohup make nb > marimo.log 2>&1 &`) |
+| Start the server | `make nb ARGS=--daemon` (or `make nb` in terminal) |
 | Create a session | `open "<url>?file=<name>.py"` — loads the notebook in the browser, which spawns a kernel/session |
 | Stop all sessions | `make nb-stop` — stops this project's server and every session it hosts |
 | Stop one session | close its browser tab |

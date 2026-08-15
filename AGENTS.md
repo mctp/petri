@@ -71,7 +71,9 @@ port from the project root so two petri projects on one machine never collide, s
 URL=$(make -s nb-url)        # e.g. http://127.0.0.1:2754
 ```
 
-1. `make nb` starts the server, or prints the URL if one is already running here.
+1. `make nb ARGS=--daemon` starts the server in the background (or prints the
+   URL if already running). **Never run foreground `make nb` in a synchronous tool call**,
+   because marimo is a persistent web server process that blocks until timeout.
 2. Open it in the browser. The server root is `notebooks/`, so omit that prefix:
    `open "$URL/?file=<name>.py"`.
 3. Find the session id, one per open notebook:
@@ -271,8 +273,8 @@ loops, or interactive prompts: they block the kernel.
 If `execute-code.sh` hangs or times out:
 
 1. `make nb-status` — is the server for *this* project up, hung, or absent?
-2. `make nb-stop` then `nohup make nb > marimo.log 2>&1 &`, or just `make nb`,
-   which stops a hung server here and starts a new one on the same port.
+2. `make nb-stop`, then `make nb ARGS=--daemon`, which starts a new server on the
+   same port and does not return until that server answers as this project's.
 3. `make nb-url`, and ask the user to open it.
 
 **Never `pkill -f "marimo edit"`, and never delete
@@ -289,7 +291,8 @@ itself. The ones you need without looking:
 
 | Command | Purpose |
 |---|---|
-| `make nb` | Start the marimo server for this project, or report the one already running. `nb-url`, `nb-status`, `nb-stop` alongside it |
+| `make nb ARGS=--daemon` | Start the marimo server for this project in the background, or report the one already running. `nb-url`, `nb-status`, `nb-stop` alongside it. Bare `make nb` runs it in the foreground, which blocks a tool call |
+| `make run NB=<path>` | Run a notebook headlessly as a script, with `PYTHONPATH` and `.env` loaded |
 | `make init [minimal\|full]` | Copy examples from `petri/examples/` into the user's empty folders. Never overwrites without `--force` |
 | `make check` | Verify artifact provenance; non-zero on drift. Reports zero artifacts on a project with no data, which is not a failure |
 | `make test` | Contracts plus the write path. The write-path tests skip unless `make init full` has run |
