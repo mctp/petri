@@ -49,6 +49,13 @@ When marimo is running:
   not persist, does not trigger dependent cells, and does not reach the user.
 - **Cells are the only durable surface with rich output.** Put plots, tables and
   widgets in cells. The scratchpad returns text only.
+- **A cell produces what it preserves.** A figure is drawn from live state in the
+  cell that calls `preserve_figure(fig, ...)`. Never point `mo.image(...)` or
+  `preserve_file(...)` at a file some other process wrote: nothing in the notebook
+  then produces the deliverable, which is the one thing a manifest is supposed to
+  record. Keep a cell's output under 5 MB — marimo rejects larger display
+  payloads, so plot natively rather than passing a multi-megapixel raster to
+  `ax.imshow()`.
 - **One cell owns a name.** marimo allows a public name to be defined in exactly
   one cell. Use `_private` names for a cell's own intermediates.
 - **Submit bare cell statements.** `ctx.create_cell(...)` and `ctx.edit_cell(...)` take
@@ -321,19 +328,20 @@ live session via `cm`. R packages: `make r-install PKG="pkgname"`.
 
 ## Subagents
 
-Whatever the harness calls them — pi's `pi-subagents` / `worker`, Claude Code's
-`Agent`:
+**A subagent never touches marimo** — no kernel, no scratchpad, no
+`execute-code.sh`, no `cm`, no cells. That kernel belongs to the user and to the
+main agent; a subagent inside it blocks both and races them.
 
-- **Always run async.** A foreground run blocks the session and aborts on
-  timeout. Subscribe without blocking, or wait explicitly when you need the
-  result.
-- **Hand back code, never binaries.** A subagent returns Python functions or cell
-  statements, not opaque images. Put pure functions in `scripts/` or embed the
-  generative plotting code directly in the cell.
-- **Never load an external cache file into a cell.** A cell generates its figure
-  from live state and calls `preserve_figure(fig, ...)`. Never point
-  `mo.image(...)` or `preserve_file(...)` at a file some other process wrote:
-  nothing in the notebook then produces the deliverable, which is the one thing a
-  manifest is supposed to record.
-- **Keep cell outputs under 5 MB.** marimo rejects large display payloads. Do not
-  pass raw multi-megapixel rasters to `ax.imshow()`; use native vector plots.
+A subagent runs in its own process, reads files, and returns **code, numbers and
+prose. Never an object, a frame or an image.** Everything it hands back must be
+text the main agent can paste into a cell and run.
+
+**Launch and yield.** Never hold the turn waiting for a result. In pi that means
+`subagent_wait` only as `{id, nonBlocking: true}`: the blocking form freezes the
+session, and its own run-to-completion exception — "the user asked you to report
+results back before continuing" — fits nearly every analysis request, so treat it
+as never applying here. Say what you launched, end the turn, report when the
+session wakes.
+
+The main agent does the committing: create the cell, run it, read the result
+back. A subagent's run carries no provenance; the cell earns the result again.

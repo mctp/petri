@@ -119,6 +119,12 @@ CLAUDE.md        -> AGENTS.md
 .claude/settings.json     permission allowlist for the marimo scripts and make
 ```
 
+Only one agent attaches to the kernel: the one you are talking to. Subagents it
+spawns stay outside — their own process, no marimo, no cells — and hand back
+code and numbers as text. The main agent turns that into a cell, so their work
+still reaches your notebook through the one kernel you share with it, and you
+still watch it arrive.
+
 
 ## Layout
 

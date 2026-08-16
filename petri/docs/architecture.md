@@ -72,6 +72,33 @@ Definitions, source citations, and the frozen-snapshot rules are in
 [`petri/skills/marimo-pair/reference/execution-context.md`](../skills/marimo-pair/reference/execution-context.md),
 with the skill that uses them.
 
+### Subagents stay outside the kernel
+
+A subagent never touches marimo. It runs in its own process and returns code,
+numbers and prose; the main agent commits that as a cell. Two runtime facts
+force this rather than recommend it:
+
+- **Scratchpad executions serialize** on `session.scratchpad_lock`, so
+  kernel-route subagents cannot run in parallel and queue behind the user.
+- **The scratchpad is a shallow copy** of kernel globals: a new binding is
+  discarded, an in-place mutation persists. Read-only can be promised, not
+  enforced.
+
+Both are sourced in
+[`execution-context.md`](../skills/marimo-pair/reference/execution-context.md).
+
+The rule lives in `AGENTS.md` because that is the only channel reaching both
+harnesses — verified against Claude Code and pi 0.84.2 / `pi-subagents` 0.50.0:
+
+| | knows it is a subagent | gets `AGENTS.md` | gets skills |
+|---|---|---|---|
+| Claude Code | yes, from its system prompt | yes, read fresh at spawn | yes, with the `Skill` tool |
+| pi | yes — `agents/worker.md` opens "You are `worker`: the implementation subagent" | built-ins yes; a custom agent defaults to no | no, `inheritSkills: false` |
+
+A rule written into a skill would therefore reach no pi subagent at all. Nothing
+blocks kernel access mechanically either — both harnesses give a subagent `bash`,
+and Claude Code also gives it `marimo-pair` — so the prose is the whole guard.
+
 ---
 
 ## 5. Artifacts & Data Layers (`petri/provenance.py`)

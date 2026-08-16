@@ -105,15 +105,14 @@ by `ext{x}`, `"$\times$"` renders as `$<tab>imes$`, and `"\nu"` is a newline and
 `u`. Python warns about an unknown escape, but the ones it does interpret pass
 silently and reach the figure.
 
-### Delegating a figure
+### The cell draws what it preserves
 
-A subagent returns code, not assets: a function for `scripts/`, or the cell
-statements that draw the plot. Embed those and preserve the figure the cell
-draws. Pointing `mo.image(...)` or `preserve_file(...)` at a PNG some other
-process wrote leaves a deliverable no cell produces, which is the one thing the
-manifest is meant to rule out. Keep what a cell displays under 5 MB — marimo
-rejects larger payloads, so plot natively rather than `imshow`-ing a
-multi-megapixel raster.
+Embed the plotting code in the cell and preserve the figure that cell draws.
+Pointing `mo.image(...)` or `preserve_file(...)` at a PNG some other process
+wrote leaves a deliverable no cell produces, which is the one thing the manifest
+is meant to rule out. Keep what a cell displays under 5 MB — marimo rejects
+larger payloads, so plot natively rather than `imshow`-ing a multi-megapixel
+raster.
 
 ## Scratchpad
 
