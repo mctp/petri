@@ -61,9 +61,11 @@ local process context. When multiple sessions are possible, target with
 
 **Ask before targeting.** Confirm which notebook (path) the user wants to
 edit. If several sessions share one file, ask for the session id — the API
-can't identify the active tab. The user can get it from the marimo UI: open
-the hamburger menu (three lines next to settings) → **Pair with an agent** and
-copy the instructions.
+can't identify the active tab. Multiple sessions per file are normal (from page
+reloads or duplicate tabs). Never guess the session id and never attempt to kill
+or close duplicate sessions via scripts or scratchpad. The user can get the active
+session id from the marimo UI: open the hamburger menu (three lines next to
+settings) → **Pair with an agent** and copy the instructions.
 
 If no server is running and the user wants a notebook, start marimo with
 `--no-token` (and without `--headless`) so it auto-registers for discovery. The
@@ -121,6 +123,9 @@ print(x)
 
 Here `df` comes from notebook globals, while `x` is a scratchpad-local binding.
 `x` exists for this call only and WILL NOT be added to notebook globals.
+
+**Never call `sys.exit()`, `os._exit()`, or terminate processes in the scratchpad.**
+Abrupt process exit severs the SSE event stream and hangs the tool harness.
 
 ### Persist with `cm`
 
@@ -194,6 +199,9 @@ several sessions may share one file, and the API cannot tell you which tab is
 live. Ask the user for the session id — the marimo UI hands it to them under
 **Pair with an agent** (see "Ask before targeting" above). Then target it with
 `--session <id>` and verify the change hit disk.
+
+**Never run `make nb-stop` without explicit user permission.** A server restart
+terminates all open kernels and drops unsaved scratchpad state across all sessions.
 
 **Re-applying on a fresh session.** A freshly-loaded session treats unread
 cells as stale, so `edit_cell`/`create_cell` raise `StaleCellError`. When

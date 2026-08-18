@@ -31,6 +31,16 @@ it would hide where it came from.
 for the full execution model, including the frozen-snapshot rules that make
 notebook state look stale.
 
+**Results go in the notebook, not in chat.** Chat is free and a cell costs a `cm`
+round trip, so the incentive pulls the wrong way — resist it. When you are about
+to type a number, a table or a figure into chat, create the cell instead, run it,
+and let the user read it there: the result exists as a cell *before* you mention
+it. Chat carries what the user needs in order to decide now — the plan, a
+question, an error and what you did about it, a number they asked for outright,
+and a closing line saying what landed and where. Everything a reader would want
+months from now is a cell: data, tables, figures, statistics, and the narrative
+that explains them.
+
 When marimo is running:
 
 - **Do not edit** `notebooks/*.py` on disk. The kernel overwrites the file on save.
@@ -43,7 +53,12 @@ When marimo is running:
 - **Hide code by default.** Pass `hide_code=True` to `ctx.create_cell(...)` so the
   editor stays collapsed unless the user asks otherwise.
 - **Target by session id**, never a filename. One server hosts many sessions, and
-  `GET /api/sessions` is keyed by session id.
+  `GET /api/sessions` is keyed by session id. Multiple sessions for one file are normal
+  (page reloads, extra tabs). Do not guess the session id or try to kill sessions.
+  Ask the user for the active session id: hamburger menu → **Pair with an agent**.
+- **Never exit or kill the kernel from the scratchpad.** Do not call `sys.exit()`,
+  `os._exit()`, or kill worker processes.
+  Abrupt process exit severs the SSE event stream and hangs the tool harness.
 - **The scratchpad is not the notebook.** It shares the kernel namespace but sits
   outside the `.py` file and outside the dependency graph. Code you run there does
   not persist, does not trigger dependent cells, and does not reach the user.
@@ -56,6 +71,13 @@ When marimo is running:
   record. Keep a cell's output under 5 MB — marimo rejects larger display
   payloads, so plot natively rather than passing a multi-megapixel raster to
   `ax.imshow()`.
+- **Downsample images before reading.** A full-resolution figure spends vision
+  tokens on detail you cannot use; 1000px on the long edge is enough to judge
+  layout, labels and overlap. Write the preview to `data/cache/`, never beside the
+  figure — that directory is scratch, and git ignores it. Pillow's `thumbnail` is
+  the portable way; `sips -Z 1000 <path> --out data/cache/preview.png` is the
+  macOS shortcut. Then read the preview. Never read a multi-megapixel figure
+  directly.
 - **One cell owns a name.** marimo allows a public name to be defined in exactly
   one cell. Use `_private` names for a cell's own intermediates.
 - **Submit bare cell statements.** `ctx.create_cell(...)` and `ctx.edit_cell(...)` take
@@ -64,14 +86,14 @@ When marimo is running:
 - **Use raw strings for LaTeX, plot labels and regexes.** `"\text{x}"` is a tab
   followed by `ext{x}`, and `"$\times$"` renders as `$<tab>imes$`. Python warns,
   but the damage is the silent substitution, not the warning. Write `r"""..."""`.
-- **The notebook is the record; chat is the conversation.** Put results in cells:
-  data, tables, figures, statistics, and the narrative that explains them.
-  Anything a reader needs months from now belongs in a cell. Put in chat what the
-  user needs now in order to decide — the plan, a question, one observation about
-  what you read, an error and what you did about it, the closing summary.
-- **Keep the scratchpad quiet.** Each printed line becomes a tool result that stays
-  in context. Print what decides your next step: a shape, a count, an `assert`.
-  Write more than 10 lines to a file, or to a cell where the user can read it.
+- **Keep the scratchpad quiet.** Every line a scratchpad call prints becomes a
+  tool result that stays in context for the rest of the session; a cell's output
+  does not. Print what decides your next step: a shape, a count, an `assert` that
+  replaces the print entirely. When you must survey many entities — genes,
+  metabolites, columns — filter and rank them in code and print the top slice
+  (`[:10]`), never an unfiltered table, dict or schema list. More than ~10 lines
+  goes to a cell, where the user can read it, or to a file. After a cell mutation,
+  return a one-line confirmation.
 
 
 ### Opening a notebook
@@ -293,12 +315,17 @@ the lockfiles, the `Makefile`, the dotfiles. Do not add to it, and do not write 
 Pass `timeout: 60` when calling `execute-code.sh`. Do not run `input()`, infinite
 loops, or interactive prompts: they block the kernel.
 
+**Never run `make nb-stop` without explicit user permission.** A restart terminates
+all open kernels on the server and drops live state.
+
 If `execute-code.sh` hangs or times out:
 
 1. `make nb-status` — is the server for *this* project up, hung, or absent?
-2. `make nb-stop`, then `make nb ARGS=--daemon`, which starts a new server on the
-   same port and does not return until that server answers as this project's.
-3. `make nb-url`, and ask the user to open it.
+2. Report the hang to the user. Do not restart the server autonomously.
+3. If the user approves a restart: `make nb-stop`, then `make nb ARGS=--daemon`,
+   which starts a new server on the same port and does not return until that
+   server answers as this project's. Then `make nb-url`, and ask the user to open
+   it.
 
 **Never `pkill -f "marimo edit"`, and never delete
 `~/.local/state/marimo/servers/*.json`.** Both are machine-wide: one machine runs

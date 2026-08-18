@@ -68,5 +68,8 @@ Discover first. If no server is running and the user wants a notebook, use
   a notebook and creates its session/kernel. Bare `make nb` runs in the
   foreground, so it blocks a synchronous tool call until that call times out.
 - **Stop all** - `make nb-stop` stops this project's server and every session.
+  **Requires explicit user permission**: it drops live state in every open kernel,
+  including notebooks the user is working in. Report the hang and let them decide;
+  never restart to clear one of your own errors.
 - **Stop one** - close its browser tab. There is no clean programmatic way;
   [`petri/docs/sessions.md`](../../../docs/sessions.md) says why.

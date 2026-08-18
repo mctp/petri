@@ -154,7 +154,9 @@ questions:
 Then do one of four things:
 
 - **fix** — the result is wrong. Correct it before showing anything.
-- **present** — the result is right. Show it with one observation, in numbers.
+- **present** — the result is right. Put it in a cell if it is not in one yet,
+  then say one thing about it in chat, in numbers. The cell carries the result;
+  chat carries the sentence that tells the user where to look.
 - **ask** — the result raises a decision that is not yours. Put the question.
 - **report the failure** — you cannot make it work. Say what you tried and what
   happened. Never present a broken result as a finished one.

@@ -6,11 +6,15 @@ How an agent starts and stops marimo sessions for this project.
 |---|---|
 | Start the server | `make nb ARGS=--daemon` (or `make nb` in terminal) |
 | Create a session | `open "<url>?file=<name>.py"` — loads the notebook in the browser, which spawns a kernel/session |
-| Stop all sessions | `make nb-stop` — stops this project's server and every session it hosts |
+| Stop all sessions | `make nb-stop` — stops this project's server and every session it hosts. **Requires explicit user permission.** |
 | Stop one session | close its browser tab |
 
-Those four cover every case worth automating. Use `make nb-stop` or the browser
-tab; do not build anything on top of the endpoint below.
+Those four cover every case worth automating. Use `make nb-stop` (with permission)
+or the browser tab; do not build anything on top of the endpoint below.
+
+**Never attempt to terminate a session by calling `sys.exit()`, `os._exit()`, or
+killing processes from within the scratchpad.**
+Abrupt process exit severs the SSE event stream and hangs the tool harness.
 
 ## Why there is no third way to stop one session
 
