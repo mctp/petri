@@ -27,6 +27,18 @@ dependencies = [
     # Provider SDK for the model configured under [tool.marimo.ai.models]. No
     # import in this repo; marimo loads it when the AI panel is used.
     "google-genai>=2.14.0",
+    # Not the template's own. These serve this checkout's notebooks, which git
+    # ignores, so nothing tracked here imports them — the rule above still holds
+    # for the block above it. Drop a line when the last notebook stops using it.
+    "networkx>=3.6.1",   # the interaction network panel in ubi_acetyl_crosstalk
+    "adjusttext>=1.4.0", # non-overlapping point labels, ptm_metabo and friends
+    # Excel readers for the .xlsx/.xls inputs in data/external/, which
+    # load_external() does not handle: fastexcel is the calamine engine polars
+    # reads through, openpyxl and xlrd are the pandas fallbacks for .xlsx and for
+    # legacy .xls. No .py file reads Excel yet; if that stays true, cut all three.
+    "fastexcel>=0.20.2",
+    "openpyxl>=3.1.5",
+    "xlrd>=2.0.2",
 ]
 
 [dependency-groups]
