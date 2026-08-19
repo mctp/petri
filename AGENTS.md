@@ -196,10 +196,11 @@ their parent rather than a layer. A relative path passed to `inputs=` is relativ
 to `PROJECT_ROOT`, never to the working directory. Failures raise `ArtifactError`;
 `check()` returns a `CheckReport` with `.ok`, `.errors` and `.warnings`.
 
-**When to run `make check`:** `check()` verifies artifact manifests against cell code
-and inputs. **Do not run `make check` after every small analysis step or interactive chat turn.**
-Run it when completing a deliverable milestone, at handoff, or in CI. Constant checks introduce
-long interactive delays.
+**Two forms, and the difference is cost.** `check()` from the scratchpad runs in
+the kernel you already have, so call it whenever you want to know where things
+stand. `make check` runs the same pass in a new interpreter and exits non-zero,
+which is the form for the shell and for CI — keep it for a finished deliverable,
+a handoff or a commit, not for every analysis step or chat turn.
 
 **Absent by design:** no `load_preserved()`, no `save_external()`, no
 `save_preserved()`, and no inference of `inputs=` or of a cell's name — you declare
@@ -317,6 +318,8 @@ loops, or interactive prompts: they block the kernel.
 
 **Never run `make nb-stop` without explicit user permission.** A restart terminates
 all open kernels on the server and drops live state.
+[petri/docs/sessions.md](petri/docs/sessions.md) has the four ways to start and
+stop a session, and why there is no fifth.
 
 If `execute-code.sh` hangs or times out:
 
@@ -343,10 +346,11 @@ itself. The ones you need without looking:
 |---|---|
 | `make nb ARGS=--daemon` | Start the marimo server for this project in the background, or report the one already running. `nb-url`, `nb-status`, `nb-stop` alongside it. Bare `make nb` runs it in the foreground, which blocks a tool call |
 | `make run NB=<path>` | Run a notebook headlessly as a script, with `PYTHONPATH` and `.env` loaded |
+| `make export NB=<path>` | Export a notebook to self-contained HTML cleanly without console noise |
 | `make init [minimal\|full]` | Copy examples from `petri/examples/` into the user's empty folders. Never overwrites without `--force` |
 | `make check` | Verify artifact provenance; non-zero on drift. Reports zero artifacts on a project with no data, which is not a failure |
 | `make test` | Contracts plus the write path. The write-path tests skip unless `make init full` has run |
-| `make lint` / `make fmt` | Check or fix formatting |
+| `make lint` / `make fmt` | Check or fix formatting (supports `make lint NB=notebooks/<name>.py`) |
 
 Python packages: `uv add <pkg>` on the host, or `ctx.packages.add("<pkg>")` in a
 live session via `cm`. R packages: `make r-install PKG="pkgname"`.

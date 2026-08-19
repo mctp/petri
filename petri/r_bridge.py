@@ -15,6 +15,11 @@ Missing values cross in both directions: Python `None` becomes the typed R `NA`,
 and R `NA` comes back as `None`. R hands `NA_real_` and `NaN` to rpy2 as the
 same float, so a missing double arrives as `None` either way.
 
+R's console output reaches Python through this module, minus progress-bar
+redraws: a chunk carrying a carriage return and no newline is dropped, so a
+`txtProgressBar` does not fill the notebook or the transcript. Nothing else is
+filtered — every line R prints, you see.
+
 These docstrings are the contract; `petri/docs/rpy2.md` covers notebook use.
 """
 
@@ -33,8 +38,47 @@ import numpy as np
 import polars as pl
 import rpy2.robjects as ro
 from rpy2 import rinterface
+from rpy2.rinterface_lib import callbacks
 
 _conv = ro.default_converter
+
+# A progress bar redraws one line: it writes a chunk holding a carriage return
+# and no newline. That is the whole test. An earlier version also dropped any
+# chunk starting with `|` that held a `%` or an `=`, which silently ate real
+# output — a `| gene | 5% |` table row never reached the notebook — and caught
+# nothing this rule misses. A bar drawn without a carriage return (style 1) is
+# left alone rather than guessed at.
+#
+# `_filtering` guards against re-wrapping: marimo runs with auto_reload, so this
+# module can be imported again in a live session, and wrapping the wrapper would
+# grow a chain on every reload.
+if not getattr(callbacks.consolewrite_print, "_petri_filtering", False):
+    _orig_consolewrite_print = callbacks.consolewrite_print
+
+    def _filtered_consolewrite_print(s: str) -> None:
+        if "\r" in s and not s.endswith("\n"):
+            return
+        _orig_consolewrite_print(s)
+
+    _filtered_consolewrite_print._petri_filtering = True
+    callbacks.consolewrite_print = _filtered_consolewrite_print
+
+
+# Two of these are quiet-output settings; `show.signif.stars` changes what R
+# prints in a result, so it is a deliberate formatting choice, not noise
+# control. Inside the converter context like every other rpy2 call here: rpy2
+# keeps its conversion rules in a ContextVar, and a marimo cell runs in a thread
+# that does not carry it.
+with _conv.context():
+    ro.r(
+        """
+        options(
+            verbose = FALSE,
+            show.signif.stars = FALSE,
+            progressr.enable = FALSE
+        )
+        """
+    )
 
 # R's integer is 32-bit and spends -2^31 on NA_integer_, so that is the floor of
 # the usable range, not -2^31 itself.

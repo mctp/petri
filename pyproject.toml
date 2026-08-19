@@ -73,11 +73,18 @@ ignore = [
 ]
 
 # A notebook is a document, and its narrative cells are prose. An en dash in
-# `mo.md()` is typography, not a homoglyph attack. Only here: in code, RUF001
-# catches a real hazard. `notebooks/**` is root-relative, so the template's own
-# `petri/examples/notebooks/` keeps the full rule set.
+# `mo.md()` is typography, not a homoglyph attack (RUF001). The rest are style
+# rules the kernel's own file format keeps tripping: import order and unused
+# imports in a cell marimo writes and rewrites (I001, F401), and the small
+# stylistic ones a cell earns while it is being drafted — inline colons, a
+# lambda, a bare f-string, a `zip` without `strict=`, an unmerged `if`, a list
+# concat, a redundant open mode.
+#
+# `notebooks/**` is root-relative, so the template's own
+# `petri/examples/notebooks/` keeps the full rule set — and `make lint` anchors
+# its format-check skip to `^notebooks/` for the same reason.
 [tool.ruff.lint.per-file-ignores]
-"notebooks/**" = ["RUF001"]
+"notebooks/**" = ["RUF001", "RUF005", "UP015", "I001", "B905", "E701", "E731", "F401", "SIM114", "F541"]
 
 [tool.ruff.format]
 docstring-code-format = true

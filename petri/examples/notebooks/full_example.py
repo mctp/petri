@@ -31,6 +31,8 @@ def _():
     )
     from petri.r_bridge import pl_to_r, py_to_r, r_eval, r_to_pl
 
+    sns.set_theme(style="ticks", font_scale=1.2)
+
     return (
         ArtifactError,
         CACHE_DIR,

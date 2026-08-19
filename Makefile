@@ -11,7 +11,7 @@ export PYTHONPATH := $(CURDIR)
 INIT_SETS := minimal full
 INIT_ARGS := $(filter $(INIT_SETS),$(MAKECMDGOALS))
 
-.PHONY: help setup init $(INIT_SETS) nb nb-url nb-status nb-stop run test lint fmt check clean r-restore r-snapshot r-status r-install
+.PHONY: help setup init $(INIT_SETS) nb nb-url nb-status nb-stop run export test lint fmt check clean r-restore r-snapshot r-status r-install
 
 help: ## Show available targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -61,9 +61,23 @@ run: ## Run a notebook headlessly as a script: make run NB=notebooks/full_exampl
 	@test -f "$(NB)" || (echo "no such notebook: $(NB)"; exit 1)
 	set -a; [ -f .env ] && . ./.env; set +a; uv run python $(NB)
 
-lint: ## Lint everything, including notebooks/, and verify formatting
-	uv run ruff check .
-	uv run ruff format --check .
+export: ## Export notebook to self-contained HTML: make export NB=notebooks/<name>.py [OUT=<name>.html]
+	@test -n "$(NB)" || (echo 'usage: make export NB=notebooks/<name>.py [OUT=<name>.html]'; exit 1)
+	@test -f "$(NB)" || (echo "no such notebook: $(NB)"; exit 1)
+	@set -a; [ -f .env ] && . ./.env; set +a; \
+	OUT=$${OUT:-$$(echo "$(NB)" | sed 's/\.py$$/\.html/')}; \
+	LOG=$$(mktemp); \
+	if PYTHONPATH="$(CURDIR)" uv run marimo export html "$(NB)" -o "$$OUT" > "$$LOG" 2>&1; then \
+	  rm -f "$$LOG"; echo "Exported HTML to $$OUT"; \
+	else \
+	  cat "$$LOG"; rm -f "$$LOG"; \
+	  echo "export failed: $(NB)"; exit 1; \
+	fi
+
+lint: ## Lint everything or single target: make lint [NB=notebooks/<name>.py]
+	@TARGET=$${TARGET:-$${NB:-.}}; \
+	uv run ruff check --output-format=concise "$$TARGET" && \
+	(echo "$$TARGET" | grep -q '^notebooks/' || uv run ruff format --check "$$TARGET")
 
 test: ## Run the test suite (contracts plus the notebook write path)
 	uv run pytest petri/tests/ -q

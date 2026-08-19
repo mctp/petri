@@ -7,7 +7,9 @@ app = marimo.App(width="medium")
 @app.cell(hide_code=True)
 def _():
     import marimo as mo
+    import matplotlib.pyplot as plt
     import polars as pl
+    import seaborn as sns
 
     from petri import (
         PROJECT_ROOT,
@@ -16,7 +18,18 @@ def _():
         preserve_table,
     )
 
-    return PROJECT_ROOT, load_shared, mo, pl, preserve_figure, preserve_table
+    sns.set_theme(style="ticks", font_scale=1.2)
+
+    return (
+        PROJECT_ROOT,
+        load_shared,
+        mo,
+        pl,
+        plt,
+        preserve_figure,
+        preserve_table,
+        sns,
+    )
 
 
 @app.cell(hide_code=True)

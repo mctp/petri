@@ -14,6 +14,8 @@ def _():
 
     from petri import CACHE_DIR, PROJECT_ROOT
 
+    sns.set_theme(style="ticks", font_scale=1.2)
+
     return CACHE_DIR, PROJECT_ROOT, mo, np, pl, plt, sns
 
 
