@@ -393,6 +393,10 @@ request to change the design, not to fill a gap.
 | **partial or appendable artifacts** | A write replaces; there is no append. An artifact is one complete statement about one run of one cell. |
 | **an mtime fast path** | Verification always hashes. An mtime says nothing about content, and recording one made every fresh clone rewrite every manifest. |
 
+Those are settled. The questions that are still open — import resolution without
+`PYTHONPATH`, and whether a manifest's code hash should survive a reformat — are
+in [`todo.md`](todo.md), each with the options and the trap in each one.
+
 ---
 
 ## 6. Maintaining the template
