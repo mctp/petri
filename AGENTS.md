@@ -41,6 +41,46 @@ and a closing line saying what landed and where. Everything a reader would want
 months from now is a cell: data, tables, figures, statistics, and the narrative
 that explains them.
 
+**Name the kind of turn before you work.** There are four.
+
+| Kind | Computes | Writes | Answer goes |
+|---|---|---|---|
+| answer | no | nothing | chat, naming the cell it came from |
+| probe | in the scratchpad | nothing | chat, marked as not saved |
+| extend | in a cell | a new cell | the notebook |
+| revise | in a cell | an existing cell | the notebook |
+
+Start each reply with the kind: `From cell <name>:`, `Probe (not saved):`,
+`New cell:`, or `Editing <cell>:`.
+
+End each reply with one next step, as a question the user can answer with `yes`.
+Name a step you would take. If you have none, stop.
+
+A probe writes no cell, no artifact and no file. Use a probe for a value you need
+only to choose the next step. If the value supports a conclusion, extend.
+
+Default to the action you can undo. A probe becomes a cell in one more turn. You
+must remove an unwanted cell yourself. An overwritten cell is gone, and each
+artifact it wrote is stale.
+
+If the kind is unclear, do the smaller kind. Offer the larger kind in one line.
+Do not ask. Ask only for a revise when the user does not name the cell, or for
+work of more than three cells. Give your default in the question.
+
+**Do not run the notebook in a new process.** `make run`, `make export` and
+`make check` start a new interpreter. `make run` and `make export` run every cell
+and write every artifact again. `make check` hashes every artifact. Any new
+command that runs notebook code, or hashes artifacts, is in this group.
+
+Run these commands when the user asks, or before a handoff. Report what the
+command shows.
+
+Do not run them after each cell, each edit, or each turn. To check provenance
+during your work, call `check()` in the scratchpad. `make check` calls the same
+function.
+
+`make lint` and `make test` are not in this group. They do not run the notebook.
+
 When marimo is running:
 
 - **Do not edit** `notebooks/*.py` on disk. The kernel overwrites the file on save.
@@ -196,11 +236,8 @@ their parent rather than a layer. A relative path passed to `inputs=` is relativ
 to `PROJECT_ROOT`, never to the working directory. Failures raise `ArtifactError`;
 `check()` returns a `CheckReport` with `.ok`, `.errors` and `.warnings`.
 
-**Two forms, and the difference is cost.** `check()` from the scratchpad runs in
-the kernel you already have, so call it whenever you want to know where things
-stand. `make check` runs the same pass in a new interpreter and exits non-zero,
-which is the form for the shell and for CI — keep it for a finished deliverable,
-a handoff or a commit, not for every analysis step or chat turn.
+`make check` calls that same function in a new interpreter and exits non-zero,
+which is the form for the shell and for CI.
 
 **Absent by design:** no `load_preserved()`, no `save_external()`, no
 `save_preserved()`, and no inference of `inputs=` or of a cell's name — you declare
@@ -345,10 +382,10 @@ itself. The ones you need without looking:
 | Command | Purpose |
 |---|---|
 | `make nb ARGS=--daemon` | Start the marimo server for this project in the background, or report the one already running. `nb-url`, `nb-status`, `nb-stop` alongside it. Bare `make nb` runs it in the foreground, which blocks a tool call |
-| `make run NB=<path>` | Run a notebook headlessly as a script, with `PYTHONPATH` and `.env` loaded |
-| `make export NB=<path>` | Export a notebook to self-contained HTML cleanly without console noise |
+| `make run NB=<path>` | **Ask first.** Run a notebook headlessly as a script, with `PYTHONPATH` and `.env` loaded |
+| `make export NB=<path>` | **Ask first.** Export a notebook to self-contained HTML cleanly without console noise. Runs every cell |
 | `make init [minimal\|full]` | Copy examples from `petri/examples/` into the user's empty folders. Never overwrites without `--force` |
-| `make check` | Verify artifact provenance; non-zero on drift. Reports zero artifacts on a project with no data, which is not a failure |
+| `make check` | **Ask first.** Verify artifact provenance; non-zero on drift. Reports zero artifacts on a project with no data, which is not a failure |
 | `make test` | Contracts plus the write path. The write-path tests skip unless `make init full` has run |
 | `make lint` / `make fmt` | Check or fix formatting (supports `make lint NB=notebooks/<name>.py`) |
 

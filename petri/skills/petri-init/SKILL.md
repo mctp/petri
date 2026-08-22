@@ -51,9 +51,11 @@ have edited, and name the files it will replace before you run it.
 
 ## After you run it
 
-Run `make check`. On `full` this verifies the four installed artifacts against
-their manifests and should report no problems; on `minimal` there is nothing to
-verify and it reports zero artifacts, which is also correct.
+Run `make check` once here. It is the exception to the rule in `AGENTS.md`: no
+kernel is open yet, so `check()` is not available. On `full` this verifies the
+four installed artifacts against their manifests and should report no problems;
+on `minimal` there is nothing to verify and it reports zero artifacts, which is
+also correct.
 
 The installed files are byte-exact copies, and that matters: each manifest pins
 the sha256 of the modules its producing cell imported, so a single edited line in

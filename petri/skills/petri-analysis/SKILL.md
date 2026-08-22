@@ -67,6 +67,30 @@ succeed from raw inputs. Never read a cache file the notebook did not write
 itself; a file some other process left there has no provenance, and building a
 deliverable on it means nothing in the notebook produces that deliverable.
 
+## Kinds of turn
+
+`AGENTS.md` has the four kinds and the reply prefixes. This section covers the
+edges.
+
+**Classify by the life of the value.** A probe answers a question you need only
+to choose the next step: a row count, an overlap, a dtype, a join that loses
+rows. Extend when the value supports a conclusion, or when you want it again
+later.
+
+**A revise makes artifacts stale.** A manifest records the code of the cell that
+wrote it. Edit that cell, and `check()` reports `cell changed since this was
+written` for each artifact from it. Say this in the same turn, and re-run the cell
+if it is cheap.
+
+**A revise also re-runs the dependent cells.** `on_cell_change` is `autorun`.
+Name an expensive chain before you edit its first cell.
+
+**Promote a probe when the user asks.** Create the cell, and compute the value
+again. Do not copy the number out of the chat. The cell earns the result.
+
+This is the start of a turn. `Read every result back` below is the end: classify,
+work, read the result back, then do one of four things.
+
 ## Cells
 
 Cells have kinds, not a fixed order. Several of each is normal.
