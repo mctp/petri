@@ -335,8 +335,11 @@ writes a rendered notebook there rather than beside the `.py`, because marimo ow
 it, and deleting it costs one `make export`.
 
 **Git ignores all of `data/`, manifests included.** `make check` verifies
-provenance where the data is; nothing about it travels through the repository. Do
-not add a manifest to git unless the user asks — and then with `git add -f`.
+provenance where the data is; none of it is pushed. Do not add a manifest to git
+unless the user asks — and then with `git add -f`.
+[petri/docs/git-lfs.md](petri/docs/git-lfs.md) covers tracking a data directory
+with git-lfs, which is worth it for `data/external/` and not for the rest, and the
+two petri rules that break if a step is skipped.
 
 Three rules hold on every task, including tasks that are not data work:
 

@@ -162,7 +162,7 @@ Petri infrastructure (do not delete):
 petri/         paths, provenance, R interop — the API your notebooks import
   examples/    what `make init` copies out: notebooks/ scripts/ data/
   tests/       provenance contracts and the write-path test
-  docs/        architecture, sessions, renv, rpy2, marimo-pair-fork, todo
+  docs/        architecture, sessions, git-lfs, renv, rpy2, marimo-pair-fork, todo
   assets/      petri-logo.png
   skills/      marimo-pair, petri-analysis, petri-init — symlinked into .pi/ and .claude/
   init.py      the `make init` sets
@@ -207,7 +207,8 @@ manifest. Every write records provenance, and `make check` verifies it.
 the data is, by `make check`, rather than shipped through the repository — a
 manifest is a generated file, and you decide what of your own work to version.
 Committing one is deliberate (`git add -f`), worth doing when a collaborator has
-to verify a table they cannot download.
+to verify a table they cannot download. To push the inputs themselves rather than
+sending them around, see [petri/docs/git-lfs.md](petri/docs/git-lfs.md).
 
 `data/cache/` is beside the three but is not a layer — petri never writes it and
 nothing verifies it. It is scratch space with a stable path, ignored by git, and
