@@ -5,6 +5,9 @@
 # own `runtime.pythonpath = ["."]` covers the editor but not script execution.
 export PYTHONPATH := $(CURDIR)
 
+# Where `make export` writes a rendered notebook.
+HTML_DIR := data/notebook_htmls
+
 # `make init full` — the set names are goals, not targets, because make takes no
 # positional arguments. The no-op rule below absorbs them so make does not report
 # "No rule to make target 'full'".
@@ -73,11 +76,16 @@ run: ## Run a notebook headlessly as a script: make run NB=notebooks/full_exampl
 	@test -f "$(NB)" || (echo "no such notebook: $(NB)"; exit 1)
 	set -a; [ -f .env ] && . ./.env; set +a; uv run python $(NB)
 
-export: ## Export notebook to self-contained HTML: make export NB=notebooks/<name>.py [OUT=<name>.html]
-	@test -n "$(NB)" || (echo 'usage: make export NB=notebooks/<name>.py [OUT=<name>.html]'; exit 1)
+# Rendered notebooks go to data/notebook_htmls/, not next to the .py. marimo owns
+# notebooks/ and rewrites what is in it; an export is a build product, so it
+# belongs with the other generated files under data/, where git ignores it and
+# deleting it costs nothing.
+export: ## Export notebook to self-contained HTML in data/notebook_htmls/: make export NB=notebooks/<name>.py [OUT=<path>.html]
+	@test -n "$(NB)" || (echo 'usage: make export NB=notebooks/<name>.py [OUT=<path>.html]'; exit 1)
 	@test -f "$(NB)" || (echo "no such notebook: $(NB)"; exit 1)
 	@set -a; [ -f .env ] && . ./.env; set +a; \
-	OUT=$${OUT:-$$(echo "$(NB)" | sed 's/\.py$$/\.html/')}; \
+	OUT=$${OUT:-$(HTML_DIR)/$$(basename "$(NB)" .py).html}; \
+	mkdir -p "$$(dirname "$$OUT")"; \
 	LOG=$$(mktemp); \
 	if PYTHONPATH="$(CURDIR)" uv run marimo export html "$(NB)" -o "$$OUT" > "$$LOG" 2>&1; then \
 	  rm -f "$$LOG"; echo "Exported HTML to $$OUT"; \

@@ -28,7 +28,7 @@ marimo.log
 .Rproj.user/
 
 # ---- Data (the user's workspace — the tree is tracked, nothing in it) ------
-# All four directories are ignored, manifests included. `data/` holds what the
+# All five directories are ignored, manifests included. `data/` holds what the
 # person using this template is working on: inputs they were given, tables they
 # published, deliverables they rendered, and scratch. None of it is the
 # template's to version, and a manifest is a generated file like any other.
@@ -43,6 +43,7 @@ data/external/*
 data/shared/*
 data/preserved/*
 data/cache/*
+data/notebook_htmls/*
 !data/*/.gitkeep
 
 # ---- Notebooks and transformations (the user's workspace) ------------------

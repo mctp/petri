@@ -96,9 +96,9 @@ pass `--force`. `make help` lists all targets.
 - Notebooks are `.py` files. They diff, review, and run as scripts (e.g. `make run NB=notebooks/foo.py` or `PYTHONPATH=. uv run python notebooks/foo.py`).
 - Do not edit a notebook file while its kernel runs. The kernel overwrites it.
 - Secrets go in `.env`. Document new keys in `.env.example`.
-- marimo's project settings live in `[tool.marimo]` in `pyproject.toml`. marimo
+- marimo's project settings are in `[tool.marimo]` in `pyproject.toml`. marimo
   reads that section and never writes to it, so a key typed into the AI panel
-  lands in your own `~/.config/marimo/marimo.toml`, not in a tracked file.
+  is written to your own `~/.config/marimo/marimo.toml`, not to a tracked file.
   Personal preferences — theme, font size, keymap — belong there too.
 - The `marimo-pair` skill is a fork in `petri/skills/`, owned by this repo. See
   [petri/docs/marimo-pair-fork.md](petri/docs/marimo-pair-fork.md).
@@ -107,7 +107,7 @@ pass `--force`. `make help` lists all targets.
 ## Agents
 
 The repo works with [pi](https://github.com/earendil-works/pi) and with Claude
-Code. The skills live in `petri/skills/` with the rest of it, and each agent's
+Code. The skills are in `petri/skills/` with the rest of it, and each agent's
 entry point is a symlink — one copy, two readers, and neither tool's directory
 owns the content:
 
@@ -209,9 +209,10 @@ manifest is a generated file, and you decide what of your own work to version.
 Committing one is deliberate (`git add -f`), worth doing when a collaborator has
 to verify a table they cannot download.
 
-`data/cache/` sits beside the three but is not a layer — petri never writes it and
+`data/cache/` is beside the three but is not a layer — petri never writes it and
 nothing verifies it. It is scratch space with a stable path, ignored by git, and
-safe to delete.
+safe to delete. `data/notebook_htmls/` is the same kind of directory: `make export`
+writes rendered notebooks there, and every one of them can be rebuilt.
 
 See [petri/docs/architecture.md](petri/docs/architecture.md) for the design and
 `petri/provenance.py` for the API.
