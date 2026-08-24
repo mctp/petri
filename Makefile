@@ -11,7 +11,7 @@ export PYTHONPATH := $(CURDIR)
 INIT_SETS := minimal full
 INIT_ARGS := $(filter $(INIT_SETS),$(MAKECMDGOALS))
 
-.PHONY: help setup init $(INIT_SETS) nb nb-url nb-status nb-stop run export test lint fmt check clean r-restore r-snapshot r-status r-install
+.PHONY: help setup init $(INIT_SETS) nb nb-url nb-open nb-session nb-status nb-stop run export test lint fmt check clean r-restore r-snapshot r-status r-install
 
 help: ## Show available targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -49,6 +49,18 @@ nb-url: ## Print this project's marimo URL
 
 nb-status: ## Report whether marimo is running for this project
 	@uv run python -m petri.server --status || true
+
+# One notebook, one session id, derived from the notebook's name. The browser is
+# handed that id in the URL, so reopening the notebook reattaches to the running
+# kernel instead of minting a new session, and the agent can derive the same id
+# rather than being told it.
+nb-open: ## Open a notebook in the browser on its own session: make nb-open NB=notebooks/<name>.py
+	@test -n "$(NB)" || (echo 'usage: make nb-open NB=notebooks/<name>.py'; exit 1)
+	@set -a; [ -f .env ] && . ./.env; set +a; PYTHONPATH="$(CURDIR)" uv run python -m petri.server --open $(NB)
+
+nb-session: ## Print the session id a notebook opens under: make nb-session NB=notebooks/<name>.py
+	@test -n "$(NB)" || (echo 'usage: make nb-session NB=notebooks/<name>.py'; exit 1)
+	@uv run python -m petri.server --session $(NB)
 
 nb-stop: ## Stop this project's marimo server, leaving other projects alone
 	@uv run python -m petri.server --stop

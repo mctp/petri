@@ -11,6 +11,7 @@ the machine. An agent working in one project killed the server another was using
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -324,3 +325,81 @@ def test_both_start_paths_use_one_command(monkeypatch):
     assert argv[:3] == ["marimo", "edit", "notebooks/"]
     assert argv[argv.index("--port") + 1] == "4242"
     assert argv[argv.index("--host") + 1] == S.HOST
+
+
+# --- a session belongs to a notebook -----------------------------------------
+#
+# marimo's browser client mints a fresh session id on every page load and keeps a
+# URL-supplied one only when it matches its own shape
+# (`frontend/src/core/kernel/session.ts`). Deriving that id from the notebook is
+# what lets the browser reattach to a running kernel instead of resuming it under
+# a new id, which is what used to strand an agent on the old one.
+
+SESSION_ID_SHAPE = re.compile(r"^s_[\da-z]{6}$")  # marimo's isSessionId()
+
+
+def test_session_id_has_the_shape_marimo_accepts_from_a_url():
+    """A malformed id is silently ignored, and the browser opens a new session."""
+    for i in range(200):
+        assert SESSION_ID_SHAPE.match(S.session_id(f"notebook-{i}.py"))
+
+
+def test_session_id_does_not_depend_on_how_the_path_is_spelled():
+    """The browser is given `foo.py`; the agent types `notebooks/foo.py`."""
+    ids = {
+        S.session_id("foo.py"),
+        S.session_id("notebooks/foo.py"),
+        S.session_id("./notebooks/foo.py"),
+        S.session_id(PROJECT_ROOT / "notebooks" / "foo.py"),
+    }
+    assert len(ids) == 1, f"one notebook, several ids: {sorted(ids)}"
+
+
+def test_different_notebooks_get_different_sessions():
+    """Two notebooks sharing an id would share a kernel, silently."""
+    ids = {S.session_id(f"notebook-{i}.py") for i in range(50)}
+    assert len(ids) == 50, "collision among 50 notebooks"
+
+
+def test_notebook_key_is_relative_to_the_server_root():
+    """marimo serves notebooks/, so `?file=` is the path inside it, not below."""
+    assert S.notebook_key("notebooks/sub/foo.py") == "sub/foo.py"
+    assert S.notebook_key("foo.py") == "foo.py"
+
+
+def test_notebook_key_rejects_a_file_the_server_does_not_serve():
+    """A real file elsewhere in the project, not reinterpreted into notebooks/."""
+    with pytest.raises(SystemExit, match="not under notebooks/"):
+        S.notebook_key("petri/server.py")
+
+
+def test_notebook_url_carries_both_parameters():
+    """Either one missing and the browser opens a different session."""
+    url = S.notebook_url("notebooks/foo.py", base="http://127.0.0.1:2718")
+    assert url == (
+        f"http://127.0.0.1:2718/?file=foo.py&session_id={S.session_id('foo.py')}"
+    )
+
+
+def test_ensure_server_reports_an_unhealthy_server_instead_of_replacing_it(
+    monkeypatch, capsys
+):
+    """A hung server keeps its kernels until the user says otherwise.
+
+    `make nb-open` calls this on every open, so a restart here would be the one
+    path that drops another notebook's live state without being asked. It reports
+    and names `make nb-stop`; whether to lose that state is the user's call.
+    """
+    hung = S.Server(pid=222, port=2754, cwd=PROJECT_ROOT, healthy=False)
+    monkeypatch.setattr(S, "server_here", lambda root=PROJECT_ROOT: hung)
+
+    def fail(*args, **kwargs):  # pragma: no cover - must not be reached
+        raise AssertionError("ensure_server stopped or started a server")
+
+    monkeypatch.setattr(S, "stop_here", fail)
+    monkeypatch.setattr(S, "start_daemon", fail)
+
+    assert S.ensure_server() is None
+    out = capsys.readouterr().out
+    assert "not responding" in out
+    assert "make nb-stop" in out

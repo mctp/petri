@@ -21,10 +21,27 @@ paths are given so this file can be re-verified after an upgrade.
 (`POST /api/kernel/execute`, `POST /api/scratchpad/run`), marimo's own MCP
 server (`_mcp/code_server/main.py`), and the editor UI.
 
-**A session is identified by a session id, never a filename.** Discover with
-`GET /api/sessions`, which returns a map keyed by session id whose values carry
-`filename`. Pass the key to `--session`, not the filename. One notebook opened
-twice is two sessions over one kernel each.
+**The API is keyed by session id, and the id is not stable.** `GET /api/sessions`
+returns a map keyed by session id whose values carry `filename` and `path`. The
+browser mints a new id on every page load and keeps a URL-supplied one only when
+it matches `^s_[\da-z]{6}$` (`frontend/src/core/kernel/session.ts`); the server
+then reattaches by *renaming* the orphaned session for that file to the new id
+(`EditModeResumeStrategy.try_resume` in `_server/resume_strategies.py`). The
+kernel survives a reopen, the id does not, and a stale one earns
+`Invalid session id` from `/api/kernel/execute`
+(`_server/api/deps.py`, `require_current_session`).
+
+So pass `--file <path>`, which resolves the key per call, and reach for
+`--session` only for an id a person just read off the UI. In a petri project
+`make nb-open` also pins the id, deriving it from the notebook's name so the
+browser presents the same one every time and marimo reconnects by id instead of
+resuming.
+
+Before marimo 0.24, resume compared `os.path.abspath(file_key)` against the
+session's path while `marimo edit notebooks/` served workspace-relative keys, so
+a reopen never matched and started a second kernel instead
+([#10474](https://github.com/marimo-team/marimo/pull/10474)). Two sessions over
+one file is now a symptom worth reporting, not the expected result of a refresh.
 
 ## What the scratchpad shares, and what it does not
 

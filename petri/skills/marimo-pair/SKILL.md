@@ -57,15 +57,29 @@ bash scripts/execute-code.sh --url http://localhost:2718 /tmp/code.py
 If no target is provided, find or start a session. First look for a running
 session with `bash scripts/discover-servers.sh`, MCP `list_sessions()`, or
 local process context. When multiple sessions are possible, target with
-`--url`, `--port`, or `--session`.
+`--url`, `--port`, and `--file`.
 
-**Ask before targeting.** Confirm which notebook (path) the user wants to
-edit. If several sessions share one file, ask for the session id — the API
-can't identify the active tab. Multiple sessions per file are normal (from page
-reloads or duplicate tabs). Never guess the session id and never attempt to kill
-or close duplicate sessions via scripts or scratchpad. The user can get the active
-session id from the marimo UI: open the hamburger menu (three lines next to
-settings) → **Pair with an agent** and copy the instructions.
+**Target by notebook, not by id.** `--file` resolves the session from the
+notebook path on every call:
+
+```bash
+bash scripts/execute-code.sh --url http://localhost:2718 \
+  --file notebooks/analysis.py -c "print('connected')"
+```
+
+A session id is not stable across a browser reopen — marimo renames a session
+when it resumes one — so an id captured at the start of a conversation can go
+stale halfway through, answering `Invalid session id`. In a petri project,
+`make nb-open NB=notebooks/<name>.py` opens the notebook on an id derived from
+its name, which keeps the pinned id valid; `--file` is correct with or without
+that.
+
+**Ask before targeting.** Confirm which notebook (path) the user wants to edit.
+If several sessions share one file, that is two kernels for one notebook and
+only one of them writes to disk: report it and ask which id, rather than
+guessing. Never kill or close a session via scripts or scratchpad. The user can
+read the active session id from the marimo UI: hamburger menu (three lines next
+to settings) → **Pair with an agent**.
 
 If no server is running and the user wants a notebook, start marimo with
 `--no-token` (and without `--headless`) so it auto-registers for discovery. The
@@ -87,19 +101,21 @@ kernel process; notebook globals live in that kernel.
 `execute-code` and `cm` operate on the targeted session's kernel. The
 scratchpad is per-kernel, so state does not cross notebooks.
 
-A session is identified by a **session id**, not a filename. The scratchpad sees
-every notebook global but sits outside the `.py` file and outside the dependency
-graph, so nothing run there persists or triggers dependents. See
-[execution-context.md](reference/execution-context.md) for the full model,
-the frozen-snapshot rules, and what the `done` event can and cannot carry back.
+The API identifies a session by a **session id**, and that id can change under
+you: on a reopen marimo renames the existing session to the id the new page
+brought with it. Name the notebook with `--file` and let the script look the id
+up. The scratchpad sees every notebook global but sits outside the `.py` file and
+outside the dependency graph, so nothing run there persists or triggers
+dependents. See [execution-context.md](reference/execution-context.md) for the
+full model, the frozen-snapshot rules, and what the `done` event can and cannot
+carry back.
 
-Multiple sessions are common (one per open notebook, plus orphans left by
-browser refreshes). `execute-code` never adds one: it requires an existing
-session and fails without one. Target explicitly with `--session` when more
-than one exists; `cm.get_context()` binds to the targeted session. Check open
-notebooks with `discover-servers.sh` or `list_sessions()` before assuming which
-notebook is active. **Only the live browser session persists to disk** — see
-"When Changes Are Written".
+One session per open notebook is the normal state. `execute-code` never adds
+one: it requires an existing session and fails without one. Target with `--file`
+when the server hosts more than one; `cm.get_context()` binds to the targeted
+session. Check open notebooks with `discover-servers.sh` or `list_sessions()`
+before assuming which notebook is active. **Only the live browser session
+persists to disk** — see "When Changes Are Written".
 
 ## Scratchpad Scope
 
@@ -193,12 +209,13 @@ reloads from disk and your work silently vanishes. Always target the live
 browser session and confirm by grepping the `.py` file afterward.
 
 **Finding the live session.** `bash scripts/discover-servers.sh` lists
-servers; `curl <url>/api/sessions | jq -r 'to_entries[] | "\(.key) \(.value.filename)"'`
-maps session ids to filenames. Browser refreshes leave orphans behind, so
-several sessions may share one file, and the API cannot tell you which tab is
-live. Ask the user for the session id — the marimo UI hands it to them under
-**Pair with an agent** (see "Ask before targeting" above). Then target it with
-`--session <id>` and verify the change hit disk.
+servers; `curl <url>/api/sessions | jq -r 'to_entries[] | "\(.key) \(.value.path)"'`
+maps session ids to notebook paths. Normally one session holds the file and
+`--file notebooks/<name>.py` finds it. If two share a path, one of them is an
+orphan that no browser is connected to, and writing into it updates memory only:
+the API cannot say which is live, so ask the user for the session id — the marimo
+UI hands it to them under **Pair with an agent** (see "Ask before targeting"
+above). Then target it with `--session <id>` and verify the change hit disk.
 
 **Never run `make nb-stop` without explicit user permission.** A server restart
 terminates all open kernels and drops unsaved scratchpad state across all sessions.
@@ -308,8 +325,9 @@ ctx.move_cell("imports", before="analysis")  # reposition; also after=
 `move_cell` takes exactly one of `before=`/`after=` — neither or both raises
 `ValueError`. A move changes visual order only: no re-execution, no graph change.
 
-In marimo, deletes are *destructive* so it can be useful to query the
-descendants prior to deleting to understand it's impact.
+`ctx.delete_cell(target)` removes a cell, and with it every global that cell
+defines. A delete is destructive, so read the descendants first to see what loses
+its input.
 
 ### Cell Status and Lifecycle
 
@@ -388,8 +406,9 @@ and scratchpad-only state for changes that should persist.
   non-obvious dependency changes.
 - **Avoid transient paths** - persisted cells should not depend on `/tmp/...`
   unless the work is intentionally transient.
-- **Delete deliberately** - deleting a cell removes globals it defines. Reuse
-  empty cells when convenient and delete cells left empty after edits.
+- **Delete deliberately** - `ctx.delete_cell(target)` removes the globals the
+  cell defines. Reuse empty cells when convenient, and delete cells left empty
+  after edits.
 
 ### UI and Widgets
 

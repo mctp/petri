@@ -10,7 +10,7 @@ requires-python = ">=3.13"
 # reader were all declared here and imported nowhere, so they are gone.
 dependencies = [
     # notebook runtime
-    "marimo[recommended]>=0.17",
+    "marimo[recommended]>=0.24",
     # data
     "numpy>=2.2",
     "polars>=1.20",

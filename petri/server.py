@@ -27,6 +27,12 @@ because discovery matches on the directory.
     python -m petri.server --status   report; exit 0 if one is running here
     python -m petri.server --url      print the base URL and nothing else
     python -m petri.server --stop     stop this project's server, no other
+    python -m petri.server --open NB  open one notebook on its own stable session
+    python -m petri.server --session NB   print that notebook's session id
+
+A session is identified the same way: by the notebook it belongs to, so the
+browser and the agent reach one kernel without either of them being told an id.
+See "A session belongs to a notebook" below.
 """
 
 from __future__ import annotations
@@ -41,14 +47,20 @@ import socket
 import subprocess
 import sys
 import time
+import webbrowser
 from pathlib import Path
 from typing import Any, NamedTuple
 from urllib.error import URLError
+from urllib.parse import quote
 from urllib.request import urlopen
 
 from .paths import PROJECT_ROOT
 
 HOST = "127.0.0.1"
+
+# The directory marimo serves. It is the server root, so a notebook's `?file=`
+# key is its path relative to here, not to PROJECT_ROOT.
+NOTEBOOK_ROOT = "notebooks"
 
 # marimo's own default is 2718. Starting there keeps the range recognisable, and
 # 1000 ports is wide enough that two projects rarely want the same one: ten
@@ -84,6 +96,92 @@ def preferred_port(root: Path = PROJECT_ROOT) -> int:
     """
     digest = hashlib.sha256(str(root.resolve()).encode()).digest()
     return PORT_BASE + int.from_bytes(digest[:4], "big") % PORT_SPAN
+
+
+# A session belongs to a notebook, the way a port belongs to a directory.
+#
+# marimo's browser client mints a fresh session id on every page load: it takes
+# `?session_id=` from the URL only when it matches `^s_[\da-z]{6}$`, then deletes
+# the parameter from the address bar, and otherwise generates a random one
+# (`frontend/src/core/kernel/session.ts`). Closing a notebook and opening it again
+# therefore arrives as a stranger, and the server reattaches it to the running
+# kernel by *renaming* that session to the new id
+# (`EditModeResumeStrategy.try_resume`). The kernel survives; the id does not, so
+# an agent holding the old one gets `Invalid session id` from
+# `/api/kernel/execute`.
+#
+# Deriving the id from the notebook removes the guesswork. The browser is handed
+# the same id every time it opens the notebook, so marimo takes its
+# reconnect-by-id path — no rename, no resume, no second kernel — and the agent
+# computes the id rather than asking for it.
+_BASE36 = "0123456789abcdefghijklmnopqrstuvwxyz"
+_SESSION_ID_CHARS = 6
+
+
+def notebook_key(notebook: str | Path) -> str:
+    """The `?file=` key for a notebook: its path relative to the server root.
+
+    marimo serves `notebooks/`, so the key for `notebooks/foo.py` is `foo.py`.
+    Accepts any spelling of the same file — relative to the project root,
+    relative to `notebooks/`, or absolute — because the caller is a human or an
+    agent typing a path, and all three name one notebook.
+    """
+    root = (PROJECT_ROOT / NOTEBOOK_ROOT).resolve()
+    path = Path(notebook)
+    candidates = [path, PROJECT_ROOT / path, root / path]
+
+    def inside(candidate: Path) -> str | None:
+        try:
+            relative = candidate.resolve().relative_to(root)
+        except ValueError:
+            return None
+        return relative.as_posix() if relative.parts else None
+
+    # A real file elsewhere in the project is an error rather than something to
+    # reinterpret: `scripts/x.py` must not become `notebooks/scripts/x.py` just
+    # because that spelling would also resolve.
+    for candidate in candidates[:2]:
+        if candidate.exists() and inside(candidate) is None:
+            raise SystemExit(
+                f"{notebook} is not under {NOTEBOOK_ROOT}/. "
+                "marimo serves that directory, and only a notebook inside it "
+                "has a session."
+            )
+
+    for candidate in candidates:
+        relative = inside(candidate)
+        if relative is not None:
+            return relative
+    raise SystemExit(
+        f"{notebook} is not under {NOTEBOOK_ROOT}/. "
+        f"marimo serves that directory, and only a notebook inside it has a session."
+    )
+
+
+def session_id(notebook: str | Path) -> str:
+    """The session id this notebook always opens under.
+
+    Six base-36 characters after `s_`, which is the shape marimo's client
+    validates a URL-supplied id against. A hash of the key rather than a counter,
+    for the same reason the port is: nothing has to be written down, and both
+    sides can derive it independently.
+    """
+    digest = hashlib.sha256(notebook_key(notebook).encode()).digest()
+    number = int.from_bytes(digest[:8], "big") % (36**_SESSION_ID_CHARS)
+    chars = []
+    for _ in range(_SESSION_ID_CHARS):
+        number, index = divmod(number, 36)
+        chars.append(_BASE36[index])
+    return "s_" + "".join(reversed(chars))
+
+
+def notebook_url(notebook: str | Path, base: str | None = None) -> str:
+    """The URL that opens this notebook on its own session."""
+    if base is None:
+        here = server_here()
+        base = here.url if here else f"http://{HOST}:{preferred_port()}"
+    key = quote(notebook_key(notebook), safe="")
+    return f"{base}/?file={key}&session_id={session_id(notebook)}"
 
 
 def _process_cwd(pid: int) -> Path | None:
@@ -206,7 +304,7 @@ def marimo_argv(port: int) -> list[str]:
     return [
         "marimo",
         "edit",
-        "notebooks/",
+        f"{NOTEBOOK_ROOT}/",
         "--no-token",
         "--host",
         HOST,
@@ -284,6 +382,60 @@ def stop_here(root: Path = PROJECT_ROOT) -> Server | None:
     return server
 
 
+def ensure_server() -> Server | None:
+    """The server for this project, started in the background if there is none.
+
+    Returns None when it could not be started; the caller has already been told
+    why.
+
+    An unhealthy server is reported, not replaced. Stopping it would drop every
+    kernel it holds, including notebooks somebody is working in, and a server
+    that fails /health may still be answering the browser. Whether to lose that
+    state is the user's call, so this returns None and names the command.
+    """
+    here = server_here()
+    if here is not None and here.healthy:
+        return here
+    if here is not None:
+        print(
+            f"marimo for this project (pid {here.pid}, port {here.port}) is not "
+            "responding on /health."
+        )
+        print(
+            "  Not restarting it: that would stop every kernel on this server. "
+            "Run `make nb-stop` to stop it yourself, then run this again."
+        )
+        return None
+    port = free_port()
+    if port != preferred_port():
+        print(f"port {preferred_port()} is taken; using {port}")
+    if start_daemon(port) != 0:
+        return None
+    return server_here()
+
+
+def open_notebook(notebook: str | Path) -> int:
+    """Start the server if needed, then open one notebook on its own session."""
+    path = (PROJECT_ROOT / NOTEBOOK_ROOT / notebook_key(notebook)).resolve()
+    if not path.is_file():
+        print(f"no such notebook: {path}")
+        print(f"  `make init` fills {NOTEBOOK_ROOT}/ from petri/examples/.")
+        return 1
+
+    here = ensure_server()
+    if here is None:
+        return 1
+
+    url = notebook_url(notebook, base=here.url)
+    # A browser that cannot be launched is not a failure: the URL is the
+    # deliverable, and over SSH there is nothing to launch it into.
+    opened = webbrowser.open(url)
+    print(f"{'opened' if opened else 'open'} {path.relative_to(PROJECT_ROOT)}")
+    print(f"  url     {url}")
+    print(f"  session {session_id(notebook)}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="python -m petri.server",
@@ -299,7 +451,24 @@ def main(argv: list[str] | None = None) -> int:
     mode.add_argument("--status", action="store_true", help="report, change nothing")
     mode.add_argument("--url", action="store_true", help="print the base URL only")
     mode.add_argument("--stop", action="store_true", help="stop this project's server")
+    mode.add_argument(
+        "--open",
+        metavar="NB",
+        help="open one notebook in the browser on its own stable session",
+    )
+    mode.add_argument(
+        "--session",
+        metavar="NB",
+        help="print the session id this notebook opens under",
+    )
     args = parser.parse_args(argv)
+
+    if args.session:
+        print(session_id(args.session))
+        return 0
+
+    if args.open:
+        return open_notebook(args.open)
 
     here = server_here()
 

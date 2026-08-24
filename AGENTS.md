@@ -32,14 +32,13 @@ for the full execution model, including the frozen-snapshot rules that make
 notebook state look stale.
 
 **Results go in the notebook, not in chat.** Chat is free and a cell costs a `cm`
-round trip, so the incentive pulls the wrong way — resist it. When you are about
-to type a number, a table or a figure into chat, create the cell instead, run it,
-and let the user read it there: the result exists as a cell *before* you mention
-it. Chat carries what the user needs in order to decide now — the plan, a
-question, an error and what you did about it, a number they asked for outright,
-and a closing line saying what landed and where. Everything a reader would want
-months from now is a cell: data, tables, figures, statistics, and the narrative
-that explains them.
+round trip. Write the cell anyway. When you are about to type a number, a table or
+a figure into chat, create the cell instead, run it, and let the user read it
+there. The result exists as a cell before you mention it. Chat holds only what the
+user needs in order to decide now: the plan, a question, an error and what you did
+about it, a number they asked for outright, and one line saying what changed and
+where. Everything a reader would want months from now is a cell — data, tables,
+figures, statistics, and the narrative that explains them.
 
 **Name the kind of turn before you work.** There are four.
 
@@ -59,27 +58,31 @@ Name a step you would take. If you have none, stop.
 A probe writes no cell, no artifact and no file. Use a probe for a value you need
 only to choose the next step. If the value supports a conclusion, extend.
 
-Default to the action you can undo. A probe becomes a cell in one more turn. You
-must remove an unwanted cell yourself. An overwritten cell is gone, and each
-artifact it wrote is stale.
+Default to the action you can undo. A probe becomes a cell in one more turn. An
+unwanted cell needs a `ctx.delete_cell` call to remove it. An overwritten cell is
+gone, and each artifact it wrote is stale.
 
-If the kind is unclear, do the smaller kind. Offer the larger kind in one line.
-Do not ask. Ask only for a revise when the user does not name the cell, or for
-work of more than three cells. Give your default in the question.
+If the kind is unclear, choose the kind that writes less, and offer the other one
+in a line. Two cases need a question first: a revise where the user did not name
+the cell, and work of more than three cells. Put your default in the question.
 
 **Do not run the notebook in a new process.** `make run`, `make export` and
-`make check` start a new interpreter. `make run` and `make export` run every cell
-and write every artifact again. `make check` hashes every artifact. Any new
-command that runs notebook code, or hashes artifacts, is in this group.
+`make check` start a new interpreter. `make run` and `make export` then run every
+cell and write every artifact again. `make check` imports petri again to hash
+every artifact. Any new command that runs notebook code in a new process is in
+this group.
 
 Run these commands when the user asks, or before a handoff. Report what the
 command shows.
 
-Do not run them after each cell, each edit, or each turn. To check provenance
-during your work, call `check()` in the scratchpad. `make check` calls the same
-function.
+Do not run them after each cell, each edit, or each turn. During your work call
+`check()` in the scratchpad instead. It is the same function and it hashes the
+same artifacts, but it runs in the kernel you already have. `make check` adds the
+new interpreter and an exit code, which is what a shell and CI need.
 
-`make lint` and `make test` are not in this group. They do not run the notebook.
+`make lint` is not in this group. It does not run the notebook. `make test` is in
+the group once `make init full` has installed the examples: its write-path tests
+run the worked example in a subprocess.
 
 When marimo is running:
 
@@ -92,10 +95,13 @@ When marimo is running:
 - **Edit cells** with `marimo._code_mode` (`cm`) in the scratchpad.
 - **Hide code by default.** Pass `hide_code=True` to `ctx.create_cell(...)` so the
   editor stays collapsed unless the user asks otherwise.
-- **Target by session id**, never a filename. One server hosts many sessions, and
-  `GET /api/sessions` is keyed by session id. Multiple sessions for one file are normal
-  (page reloads, extra tabs). Do not guess the session id or try to kill sessions.
-  Ask the user for the active session id: hamburger menu → **Pair with an agent**.
+- **Target by notebook**, with `--file notebooks/<name>.py`. One server hosts many
+  sessions and `GET /api/sessions` is keyed by session id, but that id is not yours
+  to remember: `make nb-open` gives each notebook a session id derived from its
+  name, and marimo renames a session whenever it resumes one, so `--file` resolves
+  the id per call and a pinned `--session` can go stale mid-conversation. Two
+  sessions for one file means two kernels and only one of them is writing the
+  file — report it, do not guess between them, and never kill one.
 - **Never exit or kill the kernel from the scratchpad.** Do not call `sys.exit()`,
   `os._exit()`, or kill worker processes.
   Abrupt process exit severs the SSE event stream and hangs the tool harness.
@@ -146,19 +152,30 @@ port from the project root so two petri projects on one machine never collide, s
 URL=$(make -s nb-url)        # e.g. http://127.0.0.1:2754
 ```
 
-1. `make nb ARGS=--daemon` starts the server in the background (or prints the
-   URL if already running). **Never run foreground `make nb` in a synchronous tool call**,
-   because marimo is a persistent web server process that blocks until timeout.
-2. Open it in the browser. The server root is `notebooks/`, so omit that prefix:
-   `open "$URL/?file=<name>.py"`.
-3. Find the session id, one per open notebook:
-   `curl -s "$URL/api/sessions" | jq -r 'to_entries[] | "\(.key)  \(.value.filename)"'`
-4. Run code against that kernel, passing the session id:
-   ```bash
-   bash petri/skills/marimo-pair/scripts/execute-code.sh --url "$URL" --session <id> -c "print('connected')"
-   ```
+**The session belongs to the notebook.** `make nb-open` starts the server if it is
+not running and opens one notebook on a session id derived from its name, so the
+browser and you reach one kernel without either being told an id:
 
-With one notebook open you can omit `--session`; the script selects it.
+```bash
+make nb-open NB=notebooks/<name>.py     # starts the server, opens the browser
+bash petri/skills/marimo-pair/scripts/execute-code.sh \
+  --url "$(make -s nb-url)" --file notebooks/<name>.py -c "print('connected')"
+```
+
+`make nb-session NB=notebooks/<name>.py` prints that id if you want to see it.
+`make nb ARGS=--daemon` starts a bare server without opening anything. **Never run
+foreground `make nb` in a synchronous tool call**, because marimo is a persistent
+web server process that blocks until timeout.
+
+The pinned id is what a reopened tab reattaches to. It is not a guarantee: marimo
+strips `session_id` from the address bar after reading it, so a refresh inside the
+browser (⌘R) still arrives as a new id, and marimo resumes the kernel under that
+one. `--file` costs one lookup per call and is right either way; use `--session`
+only when the user hands you an id, and re-resolve when a call answers
+`Invalid session id`.
+
+`curl -s "$URL/api/sessions" | jq -r 'to_entries[] | "\(.key)  \(.value.path)"'`
+is the raw view when you need to see what is actually running.
 
 ### Running a notebook headlessly
 
@@ -381,6 +398,7 @@ itself. The ones you need without looking:
 
 | Command | Purpose |
 |---|---|
+| `make nb-open NB=<path>` | Open one notebook in the browser on its own stable session, starting the server first if needed. `make nb-session NB=<path>` prints that session id |
 | `make nb ARGS=--daemon` | Start the marimo server for this project in the background, or report the one already running. `nb-url`, `nb-status`, `nb-stop` alongside it. Bare `make nb` runs it in the foreground, which blocks a tool call |
 | `make run NB=<path>` | **Ask first.** Run a notebook headlessly as a script, with `PYTHONPATH` and `.env` loaded |
 | `make export NB=<path>` | **Ask first.** Export a notebook to self-contained HTML cleanly without console noise. Runs every cell |
@@ -412,4 +430,5 @@ as never applying here. Say what you launched, end the turn, report when the
 session wakes.
 
 The main agent does the committing: create the cell, run it, read the result
-back. A subagent's run carries no provenance; the cell earns the result again.
+back. A subagent's run records no provenance. The cell computes the result again,
+and that is where the provenance comes from.

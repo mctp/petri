@@ -9,6 +9,11 @@
 #     code
 #   EOF
 #   execute-code.sh --url URL [--session ID] -c "code"        # skip discovery, hit URL directly
+#   execute-code.sh --url URL --file notebooks/x.py -c "code" # target by notebook
+#
+# Targeting: --session pins one id; --file names the notebook and looks its id up
+# on every call, which is what survives a browser reopen (marimo renames a session
+# when it resumes it). With neither, the server must host exactly one session.
 #
 # Auth: set MARIMO_TOKEN env var (preferred) or pass --token TOKEN (visible in ps).
 set -euo pipefail
@@ -23,12 +28,14 @@ code=""
 url=""
 token="${MARIMO_TOKEN:-}"
 session=""
+file=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --port)    port="$2"; shift 2 ;;
     --url)     url="$2"; shift 2 ;;
     --token)   token="$2"; shift 2 ;;
     --session) session="$2"; shift 2 ;;
+    --file)    file="$2"; shift 2 ;;
     -c)        code="$2"; shift 2 ;;
     -*)      echo "Unknown option: $1" >&2; exit 1 ;;
     *)       break ;;
@@ -45,6 +52,7 @@ else
   echo "Usage: execute-code.sh [--port PORT | --url URL] -c 'code'" >&2
   echo "       execute-code.sh [--port PORT | --url URL] script.py" >&2
   echo "       echo 'code' | execute-code.sh [--port PORT | --url URL]" >&2
+  echo "Target: --file notebooks/<name>.py (resolved per call) or --session ID" >&2
   echo "Auth:  set MARIMO_TOKEN env var (preferred) or pass --token TOKEN" >&2
   exit 1
 fi
@@ -142,7 +150,8 @@ if [[ -n "$token" ]]; then
   auth_args+=(-H "Authorization: Bearer ${token}")
 fi
 
-# Discover session ID
+# Discover session ID. An explicit --session wins; --file resolves the id from
+# the notebook on every call; otherwise the server must host exactly one session.
 if [[ -n "$session" ]]; then
   session_id="$session"
 else
@@ -158,15 +167,44 @@ else
     exit 1
   fi
 
-  session_count=$(echo "$session_ids" | wc -l | tr -d ' ')
+  if [[ -n "$file" ]]; then
+    # marimo reports absolute paths, so match on the tail: `notebooks/x.py`,
+    # `x.py` and the absolute path then all name the same session.
+    suffix="${file#./}"
+    [[ "$suffix" == /* ]] || suffix="/$suffix"
 
-  if [[ $session_count -gt 1 ]]; then
-    echo "Multiple sessions on server. Cannot auto-select:" >&2
-    echo "$sessions_resp" | jq -r 'to_entries[] | "\(.key)  \(.value.filename // "")"' >&2
-    exit 1
+    matches=$(echo "$sessions_resp" | jq -r --arg s "$suffix" \
+      'to_entries[] | select((.value.path // "") | endswith($s)) | .key')
+
+    if [[ -z "$matches" ]]; then
+      echo "No session for ${file}. Open the notebook first:" >&2
+      echo "  make nb-open NB=${file}" >&2
+      echo "Sessions on this server:" >&2
+      echo "$sessions_resp" | jq -r 'to_entries[] | "  \(.key)  \(.value.path // "")"' >&2
+      exit 1
+    fi
+
+    match_count=$(echo "$matches" | wc -l | tr -d ' ')
+    if [[ $match_count -gt 1 ]]; then
+      # One notebook, several kernels. Do not guess which one the browser drives.
+      echo "Multiple sessions match ${file}. Pass --session with one of:" >&2
+      echo "$sessions_resp" | jq -r --arg s "$suffix" \
+        'to_entries[] | select((.value.path // "") | endswith($s)) | "  \(.key)  \(.value.path)"' >&2
+      exit 1
+    fi
+
+    session_id="$matches"
+  else
+    session_count=$(echo "$session_ids" | wc -l | tr -d ' ')
+
+    if [[ $session_count -gt 1 ]]; then
+      echo "Multiple sessions on server. Cannot auto-select; pass --file or --session:" >&2
+      echo "$sessions_resp" | jq -r 'to_entries[] | "\(.key)  \(.value.path // "")"' >&2
+      exit 1
+    fi
+
+    session_id=$(echo "$session_ids" | head -1)
   fi
-
-  session_id=$(echo "$session_ids" | head -1)
 fi
 
 # Execute code via SSE stream

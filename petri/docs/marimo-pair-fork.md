@@ -26,7 +26,8 @@ Edit these files like any others. petri owns them.
 |---|---|
 | `reference/execution-context.md` | Written for petri: the server/session/kernel/scratchpad model, frozen-snapshot rules, and what the `done` SSE event returns. Claims cite `marimo` source paths so they can be re-checked after a marimo upgrade. |
 | `reference/connection-troubleshooting.md` | Upstream content that shipped under the name `execution-context.md` while holding connection troubleshooting. Renamed to match its subject. |
-| `SKILL.md` | Cross-references updated for the rename above. The word "artifact" removed: upstream used it for the `.py` file, while in petri an artifact is a file written with a manifest. Scratchpad semantics moved into `reference/execution-context.md`, leaving the procedure here. |
+| `SKILL.md` | Cross-references updated for the rename above. The word "artifact" removed: upstream used it for the `.py` file, while in petri an artifact is a file written with a manifest. Scratchpad semantics moved into `reference/execution-context.md`, leaving the procedure here. Targeting rewritten around `--file`. |
+| `scripts/execute-code.sh` | `--file <path>` added: resolves the session id from `/api/sessions` on every call instead of pinning one. Upstream targets by `--session`, which a browser reopen invalidates — marimo renames a session when it resumes one. [`petri/docs/sessions.md`](sessions.md) has the mechanism; `petri/tests/test_execute_code.py` pins the resolution rules. |
 
 ## Comparing against upstream
 

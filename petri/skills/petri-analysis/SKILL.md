@@ -72,7 +72,7 @@ deliverable on it means nothing in the notebook produces that deliverable.
 `AGENTS.md` has the four kinds and the reply prefixes. This section covers the
 edges.
 
-**Classify by the life of the value.** A probe answers a question you need only
+**Classify by how long the value is useful.** A probe answers a question you need only
 to choose the next step: a row count, an overlap, a dtype, a join that loses
 rows. Extend when the value supports a conclusion, or when you want it again
 later.
@@ -86,7 +86,8 @@ if it is cheap.
 Name an expensive chain before you edit its first cell.
 
 **Promote a probe when the user asks.** Create the cell, and compute the value
-again. Do not copy the number out of the chat. The cell earns the result.
+again. Do not copy the number out of the chat. The cell computes the result, so
+the result has provenance.
 
 This is the start of a turn. `Read every result back` below is the end: classify,
 work, read the result back, then do one of four things.
@@ -157,7 +158,7 @@ in the scratchpad and transcribe it later; transcription is where errors enter.
 ## Read every result back
 
 Whatever you just produced — in the scratchpad, in an unnamed cell, in a named
-cell, or preserved — read it back from where it landed before you say anything
+cell, or preserved — read it back from where it was written before you say anything
 about it. Verify it is what you intended, then interpret it.
 
 Read it back as well as the situation allows. The three routes answer different
@@ -179,8 +180,8 @@ Then do one of four things:
 
 - **fix** — the result is wrong. Correct it before showing anything.
 - **present** — the result is right. Put it in a cell if it is not in one yet,
-  then say one thing about it in chat, in numbers. The cell carries the result;
-  chat carries the sentence that tells the user where to look.
+  then say one thing about it in chat, in numbers. The cell holds the result.
+  Chat holds one sentence that says where to look.
 - **ask** — the result raises a decision that is not yours. Put the question.
 - **report the failure** — you cannot make it work. Say what you tried and what
   happened. Never present a broken result as a finished one.
