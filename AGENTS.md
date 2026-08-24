@@ -413,7 +413,7 @@ itself. The ones you need without looking:
 | `make init [minimal\|full]` | Copy examples from `petri/examples/` into the user's empty folders. Never overwrites without `--force` |
 | `make check` | **Ask first.** Verify artifact provenance; non-zero on drift. Reports zero artifacts on a project with no data, which is not a failure |
 | `make test` | Contracts plus the write path. The write-path tests skip unless `make init full` has run |
-| `make lint` / `make fmt` | Check or fix formatting (supports `make lint NB=notebooks/<name>.py`) |
+| `make lint` / `make fmt` | Check or fix formatting (supports `make lint NB=notebooks/<name>.py`). In `notebooks/` only code that cannot run is reported, not style |
 
 Python packages: `uv add <pkg>` on the host, or `ctx.packages.add("<pkg>")` in a
 live session via `cm`. R packages: `make r-install PKG="pkgname"`.

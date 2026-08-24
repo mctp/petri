@@ -72,19 +72,27 @@ ignore = [
     "F841",   # cell-local names are often outputs, not dead code
 ]
 
-# A notebook is a document, and its narrative cells are prose. An en dash in
-# `mo.md()` is typography, not a homoglyph attack (RUF001). The rest are style
-# rules the kernel's own file format keeps tripping: import order and unused
-# imports in a cell marimo writes and rewrites (I001, F401), and the small
-# stylistic ones a cell earns while it is being drafted — inline colons, a
-# lambda, a bare f-string, a `zip` without `strict=`, an unmerged `if`, a list
-# concat, a redundant open mode.
+# `notebooks/` holds analysis, not library code, and it is style rules that make
+# the difference. A cell is a document: an en dash in `mo.md()` is typography
+# (RUF), import order in a cell marimo rewrites is not the author's to fix (I),
+# and a lambda or an inline colon in a draft is not a defect (E, SIM, UP, B). All
+# of those categories are off here. So are the two stylistic members of pyflakes:
+# F401, because the import cell exists to define names for other cells to use,
+# and F541, an f-string that has no placeholder yet.
+#
+# What stays on is the part that reports code which cannot run: the rest of
+# pyflakes (F) and the NumPy rules. F821 is the one that pays for this — a cell
+# using a name its signature does not receive raises NameError when it runs, and
+# nothing else in the toolchain says so before the user clicks it.
+#
+# Whole categories rather than a list of codes: the list reached ten entries and
+# grew with every notebook, which is a sign it was denying the wrong thing.
 #
 # `notebooks/**` is root-relative, so the template's own
 # `petri/examples/notebooks/` keeps the full rule set — and `make lint` anchors
 # its format-check skip to `^notebooks/` for the same reason.
 [tool.ruff.lint.per-file-ignores]
-"notebooks/**" = ["RUF001", "RUF005", "UP015", "I001", "B905", "E701", "E731", "F401", "SIM114", "F541"]
+"notebooks/**" = ["E", "I", "UP", "B", "SIM", "PD", "RUF", "F401", "F541"]
 
 [tool.ruff.format]
 docstring-code-format = true
