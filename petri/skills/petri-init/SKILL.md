@@ -13,7 +13,7 @@ allowed-tools: Bash(make init*), Bash(uv run python -m petri.init*), Read
 
 A fresh petri project ships with empty folders. `notebooks/`, `scripts/` and the
 four `data/` directories hold nothing but a `.gitkeep`, so the user starts with
-their own work rather than deleting someone else's. The examples live in
+their own work rather than deleting someone else's. The examples are in
 `petri/examples/` and are copied out on request.
 
 ## Which set

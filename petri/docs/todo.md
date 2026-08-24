@@ -17,7 +17,7 @@ import petri  # petri/ is at the root
 from scripts.measurements import rank_by_significance  # scripts/ is too
 ```
 
-Three separate settings paper over it today, each for one entry point:
+Three separate settings work around it today, each for one entry point:
 
 1. `export PYTHONPATH := $(CURDIR)` in the `Makefile` — covers `make run` and `make test`
 2. `[tool.marimo.runtime] pythonpath = ["."]` — covers the editor kernel
@@ -101,8 +101,8 @@ produced into a `cell 'x' changed since this was written` error.
   the `--extend-exclude` on `make fmt`'s `ruff check --fix`. That exclusion is
   there for this reason and because the kernel owns those files.
 
-So the drift source is currently fenced off rather than absent. The fence is two
-config lines, and this section is what to do if it ever comes down — or if a
+So the drift source is currently disabled rather than absent. Two config lines
+disable it, and this section is what to do if either changes — or if a
 future marimo starts normalising cell text on save.
 
 ## Option C: hash a canonical AST
@@ -128,7 +128,7 @@ def _code_hash(code: str) -> str:
   - **`ast.unparse` output is not stable across CPython releases.** Its
     formatting has changed repeatedly (parenthesisation, f-string
     reconstruction after PEP 701). A manifest hashed under 3.13 can fail under
-    3.14 on byte-identical source. For a tool whose promise is that a year-old
+    3.14 on byte-identical source. For a tool whose guarantee is that a year-old
     artifact still verifies, that swaps a formatting-drift failure for an
     interpreter-upgrade failure — and the second is worse, because it fires on
     every artifact in the project at once rather than on the cell someone
@@ -152,5 +152,5 @@ defended against is ruff's own.
   moves the reproducibility question onto the ruff pin, which at least is
   explicit and already reviewed.
 
-**Leaning: neither, while the fence holds.** If it stops holding, D is the
+**Leaning: neither, while those two settings hold.** If either changes, D is the
 narrower change.

@@ -19,14 +19,14 @@ on every page load: it accepts `?session_id=` from the URL only when the value
 matches `^s_[\da-z]{6}$`, deletes the parameter from the address bar once read,
 and otherwise generates a random id
 (`frontend/src/core/kernel/session.ts`). Closing a notebook and opening it again
-therefore arrives at the server as a stranger.
+therefore arrives at the server as a new session.
 
 What keeps the kernel is `EditModeResumeStrategy`: an orphaned session for the
 same file is *renamed* to the incoming id
 (`marimo/_server/resume_strategies.py`). The browser keeps its variables; anything
 holding the old id does not — `/api/kernel/execute` answers `Invalid session id`.
 
-So petri pins the id instead of learning it. `make nb-open` derives one from the
+So petri derives the id instead of discovering it. `make nb-open` derives one from the
 notebook's name (`petri/server.py`, `session_id()`) and hands it to the browser in
 the URL, which sends marimo down its reconnect-by-id path: same kernel, same id,
 no resume and no second session. `make nb-session NB=...` prints the same value,
@@ -40,12 +40,12 @@ Two things it does not fix, both harmless if you know them:
 - Opening the same notebook in a second tab takes the session over from the first,
   because the reconnect path calls `disconnect_main_consumer()`.
 
-`execute-code.sh --file notebooks/<name>.py` sidesteps the question entirely by
+`execute-code.sh --file notebooks/<name>.py` avoids the question by
 resolving the id from `/api/sessions` on every call. Prefer it. Use `--session`
 when the user hands you an id, and re-resolve if a call answers `Invalid session
 id`.
 
-**On marimo before 0.24 this was worse than untidy.** `try_resume` matched
+**On marimo before 0.24 the effect was worse.** `try_resume` matched
 sessions with `os.path.abspath(file_key)`, which resolves against the server's
 working directory, while `marimo edit notebooks/` serves keys relative to
 `notebooks/`. Nothing ever matched, so every reopen started a *second kernel* and

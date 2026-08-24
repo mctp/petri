@@ -44,7 +44,7 @@ automatically, so `renv::install()` / `renv::snapshot()` work directly.
 ## No DESCRIPTION file
 
 renv's default snapshot mode ("implicit") scans `.R`/`.Rmd` files for
-`library(...)` calls to decide what to record. In this project R code lives
+`library(...)` calls to decide what to record. In this project R code is
 inside Python strings in marimo notebooks, so nothing is discoverable that way,
 and the alternative ("explicit") mode requires maintaining a `DESCRIPTION`
 package file.
@@ -105,7 +105,7 @@ embedded R session. Use `renv::load("<project root>")` instead.
 
 ## Installing R packages
 
-`BiocManager` is included in `renv.lock` and available by default in the project library, enabling seamless installation of both CRAN and Bioconductor packages.
+`BiocManager` is included in `renv.lock` and available by default in the project library, so both CRAN and Bioconductor packages install with one command.
 
 ```bash
 make r-install PKG=ggplot2                 # CRAN package + snapshot
@@ -144,8 +144,8 @@ make r-restore
   must download or build; a package already in the renv cache is linked into the
   library up front and left out of the graph. Edges are built with
   `intersect(deps, packages)`, so dropping that node also drops the constraints
-  it carried. With `gtable` cached and `rlang` not, `gridExtra` loses its
-  inherited dependency on `rlang` and lands in the same wave — and since each
+  it recorded. With `gtable` cached and `rlang` not, `gridExtra` loses its
+  inherited dependency on `rlang` and moves into the same wave — and since each
   wave installs in sorted order, `gridExtra` is attempted first, deterministically.
   Building it from source loads `gtable`, which needs `rlang`, which is not
   installed yet.

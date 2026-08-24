@@ -22,12 +22,12 @@ paths are given so this file can be re-verified after an upgrade.
 server (`_mcp/code_server/main.py`), and the editor UI.
 
 **The API is keyed by session id, and the id is not stable.** `GET /api/sessions`
-returns a map keyed by session id whose values carry `filename` and `path`. The
+returns a map keyed by session id whose values contain `filename` and `path`. The
 browser mints a new id on every page load and keeps a URL-supplied one only when
 it matches `^s_[\da-z]{6}$` (`frontend/src/core/kernel/session.ts`); the server
 then reattaches by *renaming* the orphaned session for that file to the new id
 (`EditModeResumeStrategy.try_resume` in `_server/resume_strategies.py`). The
-kernel survives a reopen, the id does not, and a stale one earns
+kernel survives a reopen, the id does not, and a stale one returns
 `Invalid session id` from `/api/kernel/execute`
 (`_server/api/deps.py`, `require_current_session`).
 
@@ -81,7 +81,7 @@ see, re-run, or keep into a cell.
 Scratchpad executions against one session **serialize** — each acquires
 `session.scratchpad_lock`, so concurrent calls queue rather than interleave.
 
-## Frozen snapshots (the main trap)
+## Frozen snapshots (the common mistake)
 
 At scratchpad start, `snapshot_for_scratchpad()` freezes the notebook document
 and every cell's outputs. Cells that `cm` creates and runs *during* the same
@@ -109,7 +109,7 @@ new outputs. Source: `_code_mode/_context.py`.
 
 Two results follow from `build_done_event`:
 
-- **Error detail comes before `done`, on `stderr`.** On failure `done` carries
+- **Error detail comes before `done`, on `stderr`.** On failure `done` contains
   the success bit and an empty output. `success` is false if the scratch cell
   failed, or if any downstream cell the listener captured failed. A `cm`-driven
   cell failure therefore fails the whole call.
@@ -134,4 +134,4 @@ to a cell where the user can read it.
 - [connection-troubleshooting.md](connection-troubleshooting.md) — targeting,
   auth, quoting, and script errors
 - [finding-marimo.md](finding-marimo.md) — choosing the right marimo invocation
-- [gotchas.md](gotchas.md) — name redefinition and notebook traps
+- [gotchas.md](gotchas.md) — name redefinition and common notebook errors

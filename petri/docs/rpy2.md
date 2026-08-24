@@ -58,7 +58,7 @@ uv run python -c "import rpy2.robjects as ro; print(ro.r('R.version.string')[0])
 The published `rpy2-rinterface` wheels (rpy2 3.6+ splits into `rpy2`,
 `rpy2-rinterface`, `rpy2-robjects`) are linked against the R the maintainers
 built with — on macOS, framework R under `/Library/Frameworks/R.framework/`.
-If your R lives elsewhere (e.g. Homebrew), the API extension fails to `dlopen`
+If your R is installed elsewhere (e.g. Homebrew), the API extension fails to `dlopen`
 and rpy2 falls back to ABI mode after printing a loud `Error importing in API
 mode: ImportError(...)` on import.
 
@@ -189,7 +189,7 @@ cfg = r_to_py("cfg")
 ### The six converters
 
 Three pairs, each one the other's inverse. Which function you call is decided by
-the object's shape, so every call's return type is predictable:
+the object's type, so every call's return type is predictable:
 
 | Python | push | pull | R |
 |---|---|---|---|
@@ -202,8 +202,8 @@ reshapes itself silently. Missing values cross in both directions: `None`
 becomes the typed R `NA`, and `NA` comes back as `None`.
 
 The docstrings in `petri/r_bridge.py` are the contract, down to the corner
-cases: which dtypes `pl_to_r` carries, what a partly named R list becomes, why an
-`int` sometimes lands in R as a double.
+cases: which dtypes `pl_to_r` preserves, what a partly named R list becomes, why an
+`int` sometimes becomes a double in R.
 
 Key features of `petri/r_bridge.py`:
 - Sets working directory to `PROJECT_ROOT` before importing `rpy2`, so `.Rprofile` and `.renv/library/` load once automatically at startup.
@@ -224,7 +224,7 @@ Notes for notebook use:
   `r_to_pl("as.data.frame(mat)")` raises `KeyError`. Assign the object a name
   in R first.
 - Two R shapes have no Python counterpart and raise rather than arrive wrong: a
-  date-time (`POSIXct`, `difftime`) carries a zone or unit the bridge will not
+  date-time (`POSIXct`, `difftime`) has a zone or unit the bridge will not
   invent, and `NA` in an integer, logical or character array has no NumPy
   equivalent. Convert in R first — `format()`, `as.numeric()` — or pull the
   object with `r_to_py`.

@@ -39,14 +39,14 @@ Embedding R inside Python using `rpy2` within a reactive, multi-threaded noteboo
      tables. The type of the object decides which one applies, and the wrong one
      raises instead of reshaping, so each call's return type is predictable. The
      pairs are tabulated in [rpy2.md](rpy2.md#the-six-converters); the contract,
-     including how `NA` and `None` cross, lives in the `r_bridge.py` docstrings.
+     including how `NA` and `None` cross, is in the `r_bridge.py` docstrings.
 
 ---
 
 ## 3. R Package Management (`renv`)
 
 - **Venv-like Isolation**: R packages install into `.renv/library/` (gitignored), mirroring `.venv/`. `renv.lock` sits at the root beside `uv.lock` and tracks exact versions.
-- **Custom Snapshot Filter**: Because R code lives inside Python strings in notebook files, standard `renv` dependency scanning ("implicit" mode) cannot discover imports. `.renv/settings.json` sets `snapshot.type = "custom"`, and `.Rprofile` defines a filter that snapshots whatever packages are present in `.renv/library/`.
+- **Custom Snapshot Filter**: Because R code is inside Python strings in notebook files, standard `renv` dependency scanning ("implicit" mode) cannot discover imports. `.renv/settings.json` sets `snapshot.type = "custom"`, and `.Rprofile` defines a filter that snapshots whatever packages are present in `.renv/library/`.
 
 ---
 
@@ -81,14 +81,13 @@ force this rather than recommend it:
 - **Scratchpad executions serialize** on `session.scratchpad_lock`, so
   kernel-route subagents cannot run in parallel and queue behind the user.
 - **The scratchpad is a shallow copy** of kernel globals: a new binding is
-  discarded, an in-place mutation persists. Read-only can be promised, not
-  enforced.
+  discarded, an in-place mutation persists. Read-only is a convention here, not
+  something the runtime enforces.
 
 Both are sourced in
 [`execution-context.md`](../skills/marimo-pair/reference/execution-context.md).
 
-The rule lives in `AGENTS.md` because that is the only channel reaching both
-harnesses — verified against Claude Code and pi 0.84.2 / `pi-subagents` 0.50.0:
+The rule is in `AGENTS.md` because that is the only file both harnesses read — verified against Claude Code and pi 0.84.2 / `pi-subagents` 0.50.0:
 
 | | knows it is a subagent | gets `AGENTS.md` | gets skills |
 |---|---|---|---|
@@ -97,7 +96,8 @@ harnesses — verified against Claude Code and pi 0.84.2 / `pi-subagents` 0.50.0
 
 A rule written into a skill would therefore reach no pi subagent at all. Nothing
 blocks kernel access mechanically either — both harnesses give a subagent `bash`,
-and Claude Code also gives it `marimo-pair` — so the prose is the whole guard.
+and Claude Code also gives it `marimo-pair` — so the written rule is the only
+thing that prevents it.
 
 ---
 
@@ -149,7 +149,7 @@ inputs are recorded, not guaranteed.
 A preserved bundle is addressed by `<notebook stem>/<name>`. The runtime context
 supplies the notebook. The name is an argument, because the marimo kernel does
 not expose a cell's own name at runtime. It exposes the notebook path and an
-ephemeral cell id such as `pmun`. Cell names live in the session document.
+ephemeral cell id such as `pmun`. Cell names are in the session document.
 
 A rename therefore leaves the bundle under the old name. `check()` reads the
 notebook with marimo's `load_app()` and confirms that a cell of that name exists
@@ -193,12 +193,12 @@ Two runtime settings support the same notebooks in the editor.
 
 ### Code dependencies
 
-Transformations live in `scripts/`, not in cells. Functions there are
+Transformations are in `scripts/`, not in cells. Functions there are
 testable without a kernel, and a thin cell does not re-run an expensive chain
 when you edit the transformation. (`on_cell_change` is `autorun`.)
 
 The cell hash cannot see those functions. Rewrite one, re-run, and no recorded
-value changes. Each manifest therefore also carries `code_deps`: the hash of
+value changes. Each manifest therefore also records `code_deps`: the hash of
 every project-local module the cell imports, resolved through `sys.modules` at
 write time. Editing a module in `scripts/` marks the artifacts that import it
 stale and leaves the rest unchanged.
@@ -227,7 +227,7 @@ when a collaborator has to verify a table they cannot download.
 
 #### The v1 schema
 
-This is what `manifest_version: 1` promises. Keys are sorted and the file ends with
+This is what `manifest_version: 1` guarantees. Keys are sorted and the file ends with
 a newline, so a manifest diffs cleanly. In the table, **derived** means the value
 comes from the artifact itself, and **read by** names the code that uses it.
 
@@ -239,7 +239,7 @@ comes from the artifact itself, and **read by** names the code that uses it.
 | `title` | both | — | `list_shared()`, `list_preserved()` |
 | `notebook` | both | yes | `check()`, to find the cell and hash its code |
 | `cell_code_sha256` | both | yes | `check()` identity pass |
-| `created` | both | first-seen, carried forward | `list_*` only |
+| `created` | both | first-seen, copied forward | `list_*` only |
 | `code_deps` | both | yes | `check()` — a changed module is an **error** |
 | `inputs` | both | yes | `check()` — see the severity rule below |
 | `outputs` | both | yes | `check()`, `load_shared()` |
@@ -247,7 +247,7 @@ comes from the artifact itself, and **read by** names the code that uses it.
 | `schema` | shared | yes | `load_shared()`, to rebuild dtypes from CSV |
 
 A preserved manifest has no `schema` and no `rows`. `schema` exists so
-`load_shared()` can restore dtypes that CSV cannot carry, and nothing loads a
+`load_shared()` can restore dtypes that CSV cannot store, and nothing loads a
 preserved artifact, so a schema there would never be read.
 
 **`schema` holds Polars dtype reprs, and only the class name matters.** A value is
@@ -288,8 +288,8 @@ useless for telling a real change from a re-run. The cell hash and `code_deps`
 record the code that produced the artifact, which is what reproduction needs.
 
 **No field outlives the code that wrote it.** A manifest is rebuilt from the
-skeleton on every write, and only `inputs`, `outputs`, `created` and `title` carry
-over. Returning the loaded manifest instead meant that removing a field from the
+skeleton on every write, and only `inputs`, `outputs`, `created` and `title` are
+copied over. Returning the loaded manifest instead meant that removing a field from the
 writer left it in place in every artifact that already had one, so two artifacts
 could hold different fields under the same version number.
 
@@ -347,7 +347,7 @@ already reports.
 ### CSV
 
 `data/shared/` and `preserve_table()` write CSV, which agents and people can read
-with `grep`. CSV carries no dtypes, so petri records the Polars schema in the
+with `grep`. CSV stores no dtypes, so petri records the Polars schema in the
 manifest and applies it through `schema_overrides` on read.
 
 That record holds a dtype by name, so `save_shared()` accepts only columns whose
@@ -364,7 +364,7 @@ would report it as out of date.
 A frame with **no columns** is rejected for the same reason. It writes a CSV of a
 single newline, which Polars refuses to read, so it would publish and verify here
 and then fail in whichever notebook loaded it. No *rows* is still allowed: the
-header carries the columns and the schema restores their dtypes.
+header lists the columns and the schema restores their dtypes.
 
 Floats use the Polars defaults. `float_precision` writes `1e-300` as
 `0.000000000000`, which destroys p-values. Petri pins every setting that could
@@ -388,14 +388,14 @@ request to change the design, not to fill a gap.
 | **cell-name inference** | The kernel exposes a notebook path and an ephemeral cell id, not the cell's name. `preserve_*()` takes the name as an argument and `check()` detects a rename. |
 | **a DAG engine or scheduler** | The kernel is the graph. Ordering across notebooks is a returned path taken as an argument, not a runner that sorts filenames. Transformations are plain functions in `scripts/`, so moving to Snakemake later would not require rewriting them. |
 | **a format registry** | `load_external()` reads delimited text. Everything else goes through `external_path()` and the library that suits it. A format read on the way in with nowhere to go on the way out is worse than no support. |
-| **a pickle surface** | `preserve_file()` takes bytes the caller serialized. Petri never chooses a serializer, so no artifact depends on a Python version to be readable. |
+| **a pickle API** | `preserve_file()` takes bytes the caller serialized. Petri never chooses a serializer, so no artifact depends on a Python version to be readable. |
 | **remote or content-addressed storage** | Artifacts are files in the repo's working tree, verified against manifests in git. A blob store is a different product. |
 | **partial or appendable artifacts** | A write replaces; there is no append. An artifact is one complete statement about one run of one cell. |
 | **an mtime fast path** | Verification always hashes. An mtime says nothing about content, and recording one made every fresh clone rewrite every manifest. |
 
 Those are settled. The questions that are still open — import resolution without
 `PYTHONPATH`, and whether a manifest's code hash should survive a reformat — are
-in [`todo.md`](todo.md), each with the options and the trap in each one.
+in [`todo.md`](todo.md), each with its options and the risk in each one.
 
 ---
 

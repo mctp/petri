@@ -48,7 +48,7 @@ async with cm.get_context() as ctx:
 PY
 ```
 
-When code already lives in a file, pass the file path:
+When code is already in a file, pass the file path:
 
 ```bash
 bash scripts/execute-code.sh --url http://localhost:2718 /tmp/code.py
@@ -96,7 +96,7 @@ targeting, auth, and shell quoting.
 
 marimo runs as one server process (`marimo edit <dir>`). A server hosts one or
 more sessions, each an open notebook in a browser. Each session owns one
-kernel process; notebook globals live in that kernel.
+kernel process; notebook globals are in that kernel.
 
 `execute-code` and `cm` operate on the targeted session's kernel. The
 scratchpad is per-kernel, so state does not cross notebooks.
@@ -108,7 +108,7 @@ up. The scratchpad sees every notebook global but sits outside the `.py` file an
 outside the dependency graph, so nothing run there persists or triggers
 dependents. See [execution-context.md](reference/execution-context.md) for the
 full model, the frozen-snapshot rules, and what the `done` event can and cannot
-carry back.
+return.
 
 One session per open notebook is the normal state. `execute-code` never adds
 one: it requires an existing session and fails without one. Target with `--file`
@@ -201,7 +201,7 @@ cleanly. Structural edits (`create_cell`/`edit_cell`) apply on exit;
 queue is discarded and nothing is written. Disk is not the source of truth
 mid-session — the kernel is.
 
-**Persistence lands only on the browser's live session.** Edits apply to
+**Persistence applies only to the browser's live session.** Edits apply to
 whatever session `cm` targets, but the `.py` file is written only by a
 session a browser tab is connected to (autosave). Editing an orphaned or
 disconnected session updates that kernel in memory only — a browser refresh
@@ -280,7 +280,7 @@ Use private names for intermediates that no other cell should read. Public
 names define the notebook-level dataflow. If a `cm` edit violates the contract,
 marimo rejects the structural change and returns the validation error.
 
-## The Notebook's Shape
+## The Notebook's Structure
 
 A notebook is an ordered collection of cells. `ctx.cells` is the document view
 and `ctx.graph` is the dataflow view.
@@ -428,6 +428,6 @@ For designing custom visual or interactive output, see
 - [execution-context.md](reference/execution-context.md) — server/session/kernel/scratchpad model, frozen snapshots, what `done` returns
 - [connection-troubleshooting.md](reference/connection-troubleshooting.md) — targeting, auth, quoting, and script errors
 - [finding-marimo.md](reference/finding-marimo.md) — choosing the right marimo invocation
-- [gotchas.md](reference/gotchas.md) — name redefinition, cached module proxies, and notebook traps
+- [gotchas.md](reference/gotchas.md) — name redefinition, cached module proxies, and common notebook errors
 - [rich-representations.md](reference/rich-representations.md) — custom widgets and visualizations
 - [notebook-improvements.md](reference/notebook-improvements.md) — improving existing notebooks
