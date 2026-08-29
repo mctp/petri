@@ -14,7 +14,7 @@ HTML_DIR := data/notebook_htmls
 INIT_SETS := minimal full
 INIT_ARGS := $(filter $(INIT_SETS),$(MAKECMDGOALS))
 
-.PHONY: help setup init $(INIT_SETS) nb nb-url nb-open nb-session nb-status nb-stop run export test lint fmt check clean r-restore r-snapshot r-status r-install
+.PHONY: help setup init $(INIT_SETS) nb nb-url nb-open nb-session nb-outline nb-status nb-stop run export test lint fmt check clean r-restore r-snapshot r-status r-install
 
 help: ## Show available targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -64,6 +64,13 @@ nb-open: ## Open a notebook in the browser on its own session: make nb-open NB=n
 nb-session: ## Print the session id a notebook opens under: make nb-session NB=notebooks/<name>.py
 	@test -n "$(NB)" || (echo 'usage: make nb-session NB=notebooks/<name>.py'; exit 1)
 	@uv run python -m petri.server --session $(NB)
+
+# Parses the file with ast, so it needs no kernel and no running server. Reading
+# a notebook whole is the most expensive call in this project: the largest here is
+# 332 KB, and this is 9 KB of it.
+nb-outline: ## List a notebook's cells without reading the file: make nb-outline NB=notebooks/<name>.py
+	@test -n "$(NB)" || (echo 'usage: make nb-outline NB=notebooks/<name>.py'; exit 1)
+	@uv run python -m petri.outline $(NB)
 
 nb-stop: ## Stop this project's marimo server, leaving other projects alone
 	@uv run python -m petri.server --stop

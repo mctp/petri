@@ -89,6 +89,15 @@ Name an expensive chain before you edit its first cell.
 again. Do not copy the number out of the chat. The cell computes the result, so
 the result has provenance.
 
+**A probe is free to undo and permanent to carry.** It writes no cell, no
+artifact and no file, which is why it is the default when the kind is unclear.
+But its output is a tool result: it stays in the session for every later turn,
+while a cell's output does not — that lives in the notebook, where the user reads
+it and the transcript never sees it. So the choice is not free in both
+directions. Print the value that decides the next step, not the survey you
+decided it from; when the survey itself is the point, the cell is the cheaper
+turn as well as the durable one.
+
 This is the start of a turn. `Read every result back` below is the end: classify,
 work, read the result back, then do one of four things.
 
@@ -104,6 +113,15 @@ Cells have kinds, not a fixed order. Several of each is normal.
 | step | computes and displays; anything non-trivial calls a function in `scripts/` |
 
 Edit the cell that owns a name; add a cell for a new name.
+
+**Keep the narrative out of the computing cell.** The table above puts prose in
+its own cell for the reader's sake; the same split is what keeps a long session
+affordable. `edit_cell` takes the full replacement, and you read the current body
+before submitting it, so every tweak to a cell costs twice that cell — a
+200-line cell is ~5,000 tokens per tweak, every tweak. Prose is the half that
+changes least and computation is the half you iterate on, so a cell holding both
+charges you for the prose on every pass. Narrative in one cell, computation in
+another, and each is edited at its own rate.
 
 Any step becomes a deliverable in place: name the cell to match the artifact and
 call `preserve_*` inside it. The bundle is `data/preserved/<notebook>/<cell name>/`, so

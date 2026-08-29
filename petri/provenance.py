@@ -103,6 +103,12 @@ _PREVIEW_DPI = 72
 # size unless the writer stored a pHYs chunk. This is the long-edge fallback for
 # one that did not: a 7-inch figure at _PREVIEW_DPI.
 _PREVIEW_MAX_PX = 500
+# How many rows a listing shows before it groups them instead. A listing printed
+# whole is the most expensive call in this API — 258 preserved bundles is ~23,000
+# tokens — and a scratchpad print stays in the agent's transcript for the rest of
+# the session, where a cell's output does not.
+_LISTING_ROWS = 20
+
 # What Pillow can resample. An SVG or a PDF from ggsave has no preview, which is
 # not an error: the deliverable is written either way.
 _PREVIEW_RASTER_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".tif", ".tiff"})
@@ -145,6 +151,83 @@ class CheckReport:
             mark = "ERROR  " if problem["severity"] == "error" else "warning"
             lines.append(f"  {mark} {problem['artifact']}: {problem['message']}")
         return "\n".join(lines)
+
+
+class ArtifactListing(list):
+    """The rows list_shared() and list_preserved() return, printed like a report.
+
+    The rows are for code: index them, iterate them, filter them. But the obvious
+    thing to do with a listing is print it, and printed whole this is the most
+    expensive call in the API — 258 bundles is ~23,000 tokens of transcript that
+    never leaves the session. So only the display is compact. check() sets the
+    precedent: 265 artifacts in five lines, because it prints what is wrong and
+    counts the rest.
+
+    Small listings print a line each. Past _LISTING_ROWS they are grouped by
+    notebook and counted. Either way every problem is shown, because a problem is
+    the reason to look.
+    """
+
+    def __init__(
+        self, entries: Iterable[dict[str, Any]], *, kind: str, label: str
+    ) -> None:
+        super().__init__(entries)
+        self.kind = kind
+        # Which key names a row: shared tables have "name", bundles have "id".
+        self.label = label
+
+    @property
+    def problems(self) -> list[dict[str, Any]]:
+        """The rows with something wrong — the same drift check() reports."""
+        return [row for row in self if row.get("problems")]
+
+    def __str__(self) -> str:
+        if not self:
+            return f"no {self.kind}s"
+
+        broken = self.problems
+        groups: dict[str, int] = {}
+        for row in self:
+            key = row.get("notebook") or "(unreadable manifest)"
+            groups[key] = groups.get(key, 0) + 1
+
+        lines = [
+            f"{len(self)} {self.kind}(s) in {len(groups)} notebook(s), "
+            f"{len(broken)} with problems"
+        ]
+        if len(self) <= _LISTING_ROWS:
+            for row in self:
+                mark = "  !" if row.get("problems") else ""
+                lines.append(f"  {row.get(self.label)}{mark}")
+        else:
+            for notebook, count in sorted(groups.items())[:_LISTING_ROWS]:
+                lines.append(f"  {count:>4}  {notebook}")
+            if len(groups) > _LISTING_ROWS:
+                lines.append(f"  ... {len(groups) - _LISTING_ROWS} more notebook(s)")
+
+        shown = 0
+        for row in broken:
+            for problem in row["problems"]:
+                if shown == _LISTING_ROWS:
+                    break
+                lines.append(
+                    f"  {problem['severity'].upper():<7} "
+                    f"{row.get(self.label)}: {problem['message']}"
+                )
+                shown += 1
+        remaining = sum(len(r["problems"]) for r in broken) - shown
+        if remaining > 0:
+            lines.append(f"  ... {remaining} more problem(s)")
+
+        lines.append(
+            f"  ({len(self)} rows; index or iterate one for its title, path, "
+            "files and problems)"
+        )
+        return "\n".join(lines)
+
+    # A listing is usually the last expression in a scratchpad call, which prints
+    # the repr. Without this, list's own repr dumps every row.
+    __repr__ = __str__
 
 
 # --- names ------------------------------------------------------------------
@@ -1086,11 +1169,14 @@ def preserved_path(notebook: str, cell: str, filename: str) -> Path:
     return path
 
 
-def list_shared() -> list[dict[str, Any]]:
+def list_shared() -> ArtifactListing:
     """Summarise the shared tables, with each one's problems.
 
     The counterpart to list_preserved(). Without it there is no way to ask what
     the interface layer holds.
+
+    The return value is a list of rows that prints as a summary. See
+    ArtifactListing.
     """
     entries = []
     for manifest_path in sorted(SHARED_DIR.glob("*.manifest.json")):
@@ -1123,10 +1209,10 @@ def list_shared() -> list[dict[str, Any]]:
                 "problems": _verify_manifest(manifest, SHARED_DIR),
             }
         )
-    return entries
+    return ArtifactListing(entries, kind="shared table", label="name")
 
 
-def list_preserved(notebook: str | None = None) -> list[dict[str, Any]]:
+def list_preserved(notebook: str | None = None) -> ArtifactListing:
     """Summarise preserved bundles, ordered by path.
 
     Each entry carries `problems`, so a caller can skip a figure whose inputs
@@ -1134,11 +1220,16 @@ def list_preserved(notebook: str | None = None) -> list[dict[str, Any]]:
     that wrote it.
 
     `notebook` takes either form the API reports: the notebook path in an entry's
-    `notebook` field, or the bare stem that names the directory.
+    `notebook` field, or the bare stem that names the directory. Pass it: a whole
+    project's listing is hundreds of rows, and one notebook's is a handful.
+
+    The return value is a list of rows that prints as a summary. See
+    ArtifactListing.
     """
     root = PRESERVED_DIR / Path(notebook).stem if notebook else PRESERVED_DIR
+    kind = "preserved bundle"
     if not root.exists():
-        return []
+        return ArtifactListing([], kind=kind, label="id")
     entries = []
     for manifest_path in sorted(root.rglob("manifest.json")):
         base = manifest_path.parent
@@ -1167,7 +1258,7 @@ def list_preserved(notebook: str | None = None) -> list[dict[str, Any]]:
                 "problems": _verify_manifest(manifest, base),
             }
         )
-    return entries
+    return ArtifactListing(entries, kind=kind, label="id")
 
 
 # --- verification -----------------------------------------------------------

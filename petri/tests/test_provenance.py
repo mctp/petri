@@ -315,6 +315,86 @@ def test_figure_metadata_is_stripped():
     assert A._FIG_METADATA["png"] == {"Software": None}
 
 
+# --- listings print like reports ---------------------------------------------
+
+# A listing is rows for code and a summary for a reader. Printing one whole is the
+# most expensive call in this API, and a scratchpad print never leaves the session.
+
+
+def _listing(n: int, *, problems: int = 0):
+    rows = [
+        {
+            "id": f"cell_{i}",
+            "notebook": f"notebooks/nb_{i % 3}.py",
+            "files": ["figure.png"],
+            "problems": (
+                [{"severity": "error", "message": "drifted"}] if i < problems else []
+            ),
+        }
+        for i in range(n)
+    ]
+    return A.ArtifactListing(rows, kind="preserved bundle", label="id")
+
+
+def test_a_listing_is_still_a_list():
+    """The rows are the contract. Only the display is compact."""
+    listing = _listing(5)
+    assert len(listing) == 5
+    assert listing[0]["id"] == "cell_0"
+    assert [row["id"] for row in listing][:2] == ["cell_0", "cell_1"]
+    assert isinstance(listing, list)
+
+
+def test_a_big_listing_prints_counts_not_rows():
+    """260 bundles printed whole is ~23,000 tokens of permanent transcript."""
+    text = str(_listing(260))
+    assert len(text.splitlines()) < 10, text
+    assert "260 preserved bundle(s)" in text
+    assert "cell_0" not in text
+
+
+def test_a_small_listing_prints_one_line_each():
+    """Under the threshold the rows are the useful summary."""
+    text = str(_listing(3))
+    assert "cell_0" in text and "cell_2" in text
+
+
+def test_a_listing_always_shows_its_problems():
+    """A problem is the reason to look, so it survives the summarising."""
+    text = str(_listing(260, problems=2))
+    assert "260 preserved bundle(s) in 3 notebook(s), 2 with problems" in text
+    assert text.count("drifted") == 2
+    assert "ERROR" in text
+
+
+def test_a_listing_caps_its_problems_too():
+    """A project with everything broken must not print everything broken."""
+    text = str(_listing(260, problems=60))
+    assert text.count("drifted") == A._LISTING_ROWS
+    assert "more problem(s)" in text
+
+
+def test_the_repr_is_the_summary_too():
+    """A listing is usually the last expression in a scratchpad call."""
+    listing = _listing(260)
+    assert repr(listing) == str(listing)
+
+
+def test_an_empty_listing_says_so():
+    assert str(_listing(0)) == "no preserved bundles"
+
+
+def test_a_listing_exposes_the_problem_rows():
+    assert [r["id"] for r in _listing(10, problems=2).problems] == ["cell_0", "cell_1"]
+
+
+def test_the_real_listings_return_one():
+    """Both call sites, so a future edit cannot quietly return a bare list."""
+    assert isinstance(A.list_shared(), A.ArtifactListing)
+    assert isinstance(A.list_preserved(), A.ArtifactListing)
+    assert isinstance(A.list_preserved("no-such-notebook"), A.ArtifactListing)
+
+
 # --- the preview render ------------------------------------------------------
 
 # A preview exists so an agent never reads a deliverable. Every assertion here is

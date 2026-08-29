@@ -58,6 +58,10 @@ Name a step you would take. If you have none, stop.
 A probe writes no cell, no artifact and no file. Use a probe for a value you need
 only to choose the next step. If the value supports a conclusion, extend.
 
+A probe is free to undo and permanent to carry: its output is a tool result and
+stays in the session, where a cell's output does not. Print the value that decides
+the next step, not the survey you decided it from.
+
 Default to the action you can undo. A probe becomes a cell in one more turn. An
 unwanted cell needs a `ctx.delete_cell` call to remove it. An overwritten cell is
 gone, and each artifact it wrote is stale.
@@ -87,6 +91,13 @@ run the worked example in a subprocess.
 When marimo is running:
 
 - **Do not edit** `notebooks/*.py` on disk. The kernel overwrites the file on save.
+- **Do not read one either.** These notebooks run to hundreds of kilobytes, and a
+  read is permanent: the largest here is 332 KB, or ~85,000 tokens, in one call.
+  `make nb-outline NB=notebooks/<name>.py` lists all 90 of its cells in 9 KB —
+  position, name, length, which artifact each writes, and the line or markdown
+  heading that says what it does. Read that, then pull the one cell you need from
+  the kernel with `ctx.cells["<name>"].code`. It parses the file with `ast`, so it
+  works with no server running and on a notebook someone else is editing.
 - **Run code** with `bash petri/skills/marimo-pair/scripts/execute-code.sh`.
 - **Prefix skill-relative paths.** A skill file that writes
   `bash scripts/foo.sh` means `bash petri/skills/<that-skill>/scripts/foo.sh`,
@@ -242,7 +253,7 @@ artifact and cannot be verified.
 | `preserve_file(src, name, *, filename)` | already-serialized payload; a `str` is content, a `Path` is a file |
 | `preserved_path(notebook, cell, filename)` | path inside a preserved bundle |
 | `list_shared()` | shared tables, each with its problems |
-| `list_preserved(notebook=None)` | preserved bundles, each with its files and problems |
+| `list_preserved(notebook=None)` | preserved bundles, each with its files and problems; pass `notebook=` to ask about one |
 | `check()` | verify every manifest; what `make check` runs |
 
 `save_shared` returns the file it wrote; each `preserve_*` returns the bundle
@@ -263,7 +274,11 @@ Path constants: `PROJECT_ROOT`, `EXTERNAL_DIR`, `SHARED_DIR`, `PRESERVED_DIR`,
 `CACHE_DIR`. The last four are under `data/`; there is no `DATA_DIR`, which is
 their parent rather than a layer. A relative path passed to `inputs=` is relative
 to `PROJECT_ROOT`, never to the working directory. Failures raise `ArtifactError`;
-`check()` returns a `CheckReport` with `.ok`, `.errors` and `.warnings`.
+`check()` returns a `CheckReport` with `.ok`, `.errors` and `.warnings`. The two
+`list_*` calls return an `ArtifactListing`: a list of rows to index and iterate,
+which prints as a summary — counts by notebook, then every problem — because this
+project has 260 bundles and printing them whole costs ~23,000 tokens of transcript
+against 149. Filter and slice the rows; never print the list to see one row.
 
 `make check` calls that same function in a new interpreter and exits non-zero,
 which is the form for the shell and for CI.
@@ -423,6 +438,7 @@ itself. The ones you need without looking:
 | Command | Purpose |
 |---|---|
 | `make nb-open NB=<path>` | Open one notebook in the browser on its own stable session, starting the server first if needed. `make nb-session NB=<path>` prints that session id |
+| `make nb-outline NB=<path>` | List a notebook's cells — position, name, length, artifacts written, one summary line each — instead of reading the file. No kernel needed |
 | `make nb ARGS=--daemon` | Start the marimo server for this project in the background, or report the one already running. `nb-url`, `nb-status`, `nb-stop` alongside it. Bare `make nb` runs it in the foreground, which blocks a tool call |
 | `make run NB=<path>` | **Ask first.** Run a notebook headlessly as a script, with `PYTHONPATH` and `.env` loaded |
 | `make export NB=<path>` | **Ask first.** Export a notebook to self-contained HTML in `data/notebook_htmls/`, without console noise. Runs every cell. `OUT=<path>.html` writes elsewhere |

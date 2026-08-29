@@ -26,6 +26,7 @@ from .paths import (
 )
 from .provenance import (
     ArtifactError,
+    ArtifactListing,
     CheckReport,
     check,
     external_path,
@@ -48,6 +49,7 @@ __all__ = [
     "PROJECT_ROOT",
     "SHARED_DIR",
     "ArtifactError",
+    "ArtifactListing",
     "CheckReport",
     "check",
     "external_path",
