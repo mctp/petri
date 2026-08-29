@@ -132,7 +132,7 @@ Yours, empty until `make init`:
 
 ```
 notebooks/     marimo notebooks
-scripts/       your transformations: pure functions, no I/O
+scripts/       the heavy lifting: pure functions, no I/O
 data/          your data: external/ shared/ preserved/ cache/ (see below)
 ```
 

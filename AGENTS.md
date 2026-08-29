@@ -381,9 +381,14 @@ Three rules hold on every task, including tasks that are not data work:
 - **`data/preserved/` is terminal.** No notebook reads another notebook's preserved
   artifact. Promote a result with `save_shared()` instead.
 
-`scripts/` holds your transformations: pure functions, data in and data out.
-No file I/O, no path constants, no marimo imports. A cell loads, calls a
-function, and preserves. An edit here marks the artifacts built from it stale.
+`scripts/` holds the heavy lifting: pure functions, data in and data out. No file
+I/O, no path constants, no marimo imports. An edit here marks the artifacts built
+from it stale, because `code_deps` hashes the project modules a cell imports.
+
+It is not the default home for a transformation. A notebook should be
+reproducible on its own, so a helper several cells share belongs in a cell of the
+notebook that shares it, and `scripts/` is for the work that is too heavy or too
+reused to sit in one. The `petri-analysis` skill has where to cut a long cell.
 
 `petri/` holds the template's own machinery — the API source, plus `tests/`,
 `docs/`, `skills/`, `init.py`, `server.py` and `examples/`. **New machinery goes there, not at

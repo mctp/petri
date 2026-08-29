@@ -110,22 +110,53 @@ Cells have kinds, not a fixed order. Several of each is normal.
 | setup | imports, kept together near the top |
 | narrative | `mo.md` or `mo.vstack`, no computation; placed before the step it describes |
 | input | `load_shared()`, or `load_external()` in a publishing cell |
-| step | computes and displays; anything non-trivial calls a function in `scripts/` |
+| step | computes and displays; keep it small enough to edit — see below |
+| helper | defines a function several later cells call; the in-notebook `scripts/` |
 
 Edit the cell that owns a name; add a cell for a new name.
-
-**Keep the narrative out of the computing cell.** The table above puts prose in
-its own cell for the reader's sake; the same split is what keeps a long session
-affordable. `edit_cell` takes the full replacement, and you read the current body
-before submitting it, so every tweak to a cell costs twice that cell — a
-200-line cell is ~5,000 tokens per tweak, every tweak. Prose is the half that
-changes least and computation is the half you iterate on, so a cell holding both
-charges you for the prose on every pass. Narrative in one cell, computation in
-another, and each is edited at its own rate.
 
 Any step becomes a deliverable in place: name the cell to match the artifact and
 call `preserve_*` inside it. The bundle is `data/preserved/<notebook>/<cell name>/`, so
 the cell stays where it is in the document.
+
+### Keep a cell small
+
+A cell is the unit you edit and the unit that re-runs, and both costs are charged
+by the size of the cell rather than the size of the change. `edit_cell` takes a
+full replacement and you read the current body before submitting it, so a tweak
+costs twice the cell: ~1,500 tokens at 60 lines, ~5,000 at 200, every time.
+`on_cell_change` is `autorun`, so a cell that fits limma and a volcano plot in one
+body runs limma again every time you move a label.
+
+Sixty lines is about a screen and about 1,500 tokens a round trip. Past ~120 the
+cost is a reason to split even when the code is cohesive. For scale: the cells in
+this project run to a median of 73 lines, a p90 of 167 and a maximum of 435.
+
+**Cut where a value already has a name.** A long cell reaches its result through
+two or three intermediates. Each is a cell, and the whole edit is promoting a
+`_private` name to a public one so marimo can wire it into the graph. The
+dependency tracking is a side effect you get for free.
+
+**Put a helper in its own cell.** A function three later cells call belongs in one
+short cell, where it is edited at its own size. The notebook still runs on its
+own, which is the point of keeping it there: a notebook should be reproducible
+without `scripts/`, and `scripts/` is for heavy lifting.
+
+**Split the statistics from the drawing.** Keep the drawing and the `preserve_*`
+call together — the cell draws what it preserves — but let the frame it plots come
+from upstream. Then styling a figure re-runs the styling.
+
+**Do not split for the number's sake.** A split that forces a public name meaning
+nothing to the notebook costs more reading than it saves editing. Cohesion first;
+the line count is a signal.
+
+One thing to know before splitting a preserving cell: a manifest records the code
+of that cell, its declared `inputs=`, and the `scripts/` modules it imports. Cells
+upstream of it are covered by the kernel's graph, not by the manifest — with
+autorun they re-run and rewrite the artifact, so the deliverable stays correct,
+but `check()` will not report an upstream edit as staleness the way it reports an
+edit to the preserving cell or to a `scripts/` function. Split for editability;
+know that this is what you trade.
 
 ### Passing a table between cells
 
