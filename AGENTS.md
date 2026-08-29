@@ -369,7 +369,8 @@ it, and deleting it costs one `make export`.
 provenance where the data is; none of it is pushed. Do not add a manifest to git
 unless the user asks — and then with `git add -f`.
 [petri/docs/git-lfs.md](petri/docs/git-lfs.md) covers tracking a data directory
-with git-lfs, which is worth it for `data/external/` and not for the rest, and the
+with git-lfs — worth it for `data/external/` and for `data/preserved/`, in a
+project repository rather than in this template, and not for the rest — plus the
 two petri rules that break if a step is skipped.
 
 Three rules hold on every task, including tasks that are not data work:
