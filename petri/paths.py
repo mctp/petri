@@ -17,9 +17,11 @@ from code to directory is unambiguous (see petri/docs/architecture.md):
                                     preserve_table()  journals. Terminal: never
                                     preserve_file()   read by notebook code.
 
-`data/cache/` sits beside them but is not a fourth layer: petri never writes it
-and nothing verifies it. It is scratch space with a stable path, which is why it
-is the one directory here that no verb owns. `CACHE_DIR` is opt-in —
+`data/cache/` sits beside them but is not a fourth layer: nothing verifies it. It
+is scratch space with a stable path, which is why it is the one directory here
+that no verb owns. Petri writes only `data/cache/preview/` — the low-resolution
+figure previews preserve_figure() leaves to be read in place of the deliverable.
+Those carry no manifest and are not artifacts, which is why they live here. `CACHE_DIR` is opt-in —
 `mo.persistent_cache` defaults to `notebooks/__marimo__/cache`, which `make clean`
 removes, so point it here when the cached state is expensive enough that you do
 not want `make clean` to take it with the rest of the scratch:

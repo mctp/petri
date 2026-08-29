@@ -45,7 +45,13 @@ from typing import Any
 
 import polars as pl
 
-from .paths import EXTERNAL_DIR, PRESERVED_DIR, PROJECT_ROOT, SHARED_DIR
+from .paths import (
+    CACHE_DIR,
+    EXTERNAL_DIR,
+    PRESERVED_DIR,
+    PROJECT_ROOT,
+    SHARED_DIR,
+)
 
 MANIFEST_VERSION = 1
 SCRATCH_CELL_ID = "__scratch__"
@@ -84,6 +90,22 @@ _FIG_METADATA = {
     "pdf": {"CreationDate": None},
     "svg": {"Date": None},
 }
+
+# The preview render. A deliverable is sized for a printer; an agent reading one
+# pays for every pixel of that and can use none of it. dpi=72 makes one
+# typographic point one pixel, so a font size set in points is that many pixels
+# tall and the ~8px legibility floor follows from the numbers already in the
+# code. A 5x4in figure is 328x283 here against 1372x1176 at 300dpi: a
+# seventeenth of the pixels, with the layout and the overplotting density
+# unchanged, because both come off the same figure object.
+_PREVIEW_DPI = 72
+# A Path figure cannot be re-rendered, only resampled, and it carries no figure
+# size unless the writer stored a pHYs chunk. This is the long-edge fallback for
+# one that did not: a 7-inch figure at _PREVIEW_DPI.
+_PREVIEW_MAX_PX = 500
+# What Pillow can resample. An SVG or a PDF from ggsave has no preview, which is
+# not an error: the deliverable is written either way.
+_PREVIEW_RASTER_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".tif", ".tiff"})
 
 
 # --- errors -----------------------------------------------------------------
@@ -369,6 +391,70 @@ def _describe_input(path: Path) -> dict[str, Any]:
 
 
 # --- writing ----------------------------------------------------------------
+
+
+def _preview_path(stem: str, name: str, filename: str) -> Path:
+    """Where the preview for one figure goes: data/cache/preview/<nb>/<cell>-<file>.png.
+
+    Under CACHE_DIR because a preview is scratch. It carries no manifest, nothing
+    verifies it, git ignores it, and deleting the tree costs one re-run. Putting
+    it in the bundle instead would leave a file check() reports as unrecorded,
+    and would ship a 72dpi PNG beside the deliverable it stands in for.
+
+    The name pairs the cell with the figure's `filename`, so two figures in one
+    cell get two previews for the same reason they get two renders.
+    """
+    return CACHE_DIR / "preview" / stem / f"{name}-{filename}.png"
+
+
+def _preview_from_figure(fig: Any) -> bytes:
+    """Re-render a live figure at _PREVIEW_DPI.
+
+    savefig's dpi is per-call, so the figure keeps its own and the deliverable
+    that follows is unaffected. Re-rendering beats resampling the deliverable:
+    text is laid out at the target size instead of being blurred down to it, and
+    it costs one savefig either way.
+    """
+    import io
+
+    buf = io.BytesIO()
+    fig.savefig(
+        buf,
+        format="png",
+        dpi=_PREVIEW_DPI,
+        metadata=_FIG_METADATA["png"],
+        bbox_inches="tight",
+    )
+    return buf.getvalue()
+
+
+def _preview_from_raster(payload: bytes) -> bytes:
+    """Resample an already-rendered raster, for the Path form.
+
+    There is no figure object to re-render, so this is the one place a preview is
+    resampled. Scale from the stored dpi when the writer recorded one — ggsave
+    does — and fall back to a long-edge cap when it did not. Never upscale: a
+    figure already at preview size is its own preview.
+    """
+    import io
+
+    from PIL import Image
+
+    with Image.open(io.BytesIO(payload)) as im:
+        stored = im.info.get("dpi")
+        source_dpi = float(stored[0]) if stored and stored[0] else None
+        if source_dpi and source_dpi > _PREVIEW_DPI:
+            scale = _PREVIEW_DPI / source_dpi
+        elif max(im.size) > _PREVIEW_MAX_PX:
+            scale = _PREVIEW_MAX_PX / max(im.size)
+        else:
+            return payload
+        target = (max(1, round(im.width * scale)), max(1, round(im.height * scale)))
+        mode = "RGBA" if im.mode in ("P", "RGBA", "LA") else "RGB"
+        small = im.convert(mode).resize(target, Image.LANCZOS)
+        buf = io.BytesIO()
+        small.save(buf, format="png", optimize=True)
+        return buf.getvalue()
 
 
 def _write_if_changed(path: Path, data: bytes) -> str:
@@ -713,6 +799,7 @@ def preserve_figure(
     title: str | None = None,
     inputs: Iterable[Path | str] = (),
     formats: tuple[str, ...] = ("pdf", "png"),
+    preview: bool = True,
 ) -> Path:
     """Preserve a figure bundle to data/preserved/<notebook>/<name>/.
 
@@ -735,6 +822,20 @@ def preserve_figure(
     CreationDate and a ModDate, and those bytes change on every run, so each run
     rewrites the file. Prefer PNG or SVG from R.
 
+    `preview` also writes a 72dpi PNG to
+    data/cache/preview/<notebook>/<name>-<filename>.png, outside the bundle and
+    outside the manifest. That file is for an agent to read: a deliverable is
+    sized for a printer, and reading one costs seventeen times the tokens of the
+    preview while answering the same questions about layout, labels and overlap.
+    Read the preview; never read the deliverable. It is scratch — nothing
+    verifies it, git ignores it, and a stale one costs a re-run.
+
+    A live figure is re-rendered at that dpi, so the layout is the figure's own
+    and the text is laid out rather than blurred down. A Path is resampled
+    instead, since there is nothing left to re-render, and a Path that Pillow
+    cannot open — an SVG, a PDF from ggsave — gets no preview and no error.
+    Pass preview=False for a figure whose preview would be meaningless.
+
     No schema is recorded. The schema on a shared table exists so load_shared()
     can rebuild dtypes from CSV; nothing loads a preserved artifact, so a schema
     here would be a field that is written and never read.
@@ -745,12 +846,19 @@ def preserve_figure(
     # Render everything before opening the bundle. _open_bundle() empties the
     # bundle when the cell's code has changed, so a failure after that point
     # would destroy the deliverable it was about to replace.
+    #
+    # The preview is rendered here too, for the same reason: a preview that fails
+    # must fail before the bundle is opened, not after the deliverable is written.
     renders: list[tuple[str, bytes]] = []
+    preview_payload: bytes | None = None
     if isinstance(fig, (str, Path)):
         src = Path(fig)
         if not src.exists():
             raise ArtifactError(f"figure file does not exist: {src}")
-        renders.append((f"{filename}{src.suffix}", src.read_bytes()))
+        src_payload = src.read_bytes()
+        renders.append((f"{filename}{src.suffix}", src_payload))
+        if preview and src.suffix.lower() in _PREVIEW_RASTER_SUFFIXES:
+            preview_payload = _preview_from_raster(src_payload)
     elif hasattr(fig, "savefig"):
         import io
 
@@ -769,6 +877,8 @@ def preserve_figure(
                 buf, format=fmt, metadata=_FIG_METADATA[fmt], bbox_inches="tight"
             )
             renders.append((f"{filename}.{fmt}", buf.getvalue()))
+        if preview:
+            preview_payload = _preview_from_figure(fig)
     else:
         raise ArtifactError(
             f"expected a matplotlib Figure or a Path, got {type(fig).__name__}"
@@ -785,6 +895,13 @@ def preserve_figure(
     _record_output(manifest, bundle / data_name, digest)
 
     _write_manifest(bundle / "manifest.json", manifest)
+
+    # Last, and outside the manifest. The deliverable is complete at this point,
+    # so the one write that no manifest describes cannot leave a bundle
+    # half-recorded.
+    if preview_payload is not None:
+        stem, _ = _cell_identity()
+        _write_if_changed(_preview_path(stem, name, filename), preview_payload)
     return bundle
 
 

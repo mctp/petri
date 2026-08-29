@@ -117,13 +117,23 @@ When marimo is running:
   record. Keep a cell's output under 5 MB — marimo rejects larger display
   payloads, so plot natively rather than passing a multi-megapixel raster to
   `ax.imshow()`.
-- **Downsample images before reading.** A full-resolution figure uses vision
-  tokens for detail you cannot use; 1000px on the long edge is enough to judge
-  layout, labels and overlap. Write the preview to `data/cache/`, never beside the
-  figure — that directory is scratch, and git ignores it. Pillow's `thumbnail` is
-  the portable way; `sips -Z 1000 <path> --out data/cache/preview.png` is the
-  macOS shortcut. Then read the preview. Never read a multi-megapixel figure
-  directly.
+- **Read the preview, never the deliverable.** An image bills by the pixel, and a
+  preserved figure is sized for a printer. `preserve_figure()` writes a 72dpi PNG
+  to `data/cache/preview/<notebook>/<cell>-<filename>.png` for you to read: a
+  5x4in figure is 328x283 there against 1372x1176 at 300dpi, which is 124 tokens
+  against 2151 for the same answers about layout, labels and overlap. Nothing
+  rescues you from reading the deliverable instead — at 1372px it is under the
+  1568px cap, so it is not resized on the way in and you are billed all of it.
+- **Choose the dpi, not the pixel count.** 72dpi makes one point one pixel, so
+  type set in points is that many pixels tall and 8pt text lands on the ~8px
+  legibility floor. Below that the layout survives and the tick labels do not, so
+  you pay for an image you cannot read. For a figure you are not preserving,
+  `fig.savefig(CACHE_DIR / "<name>-preview.png", dpi=72, bbox_inches="tight")` is
+  the whole recipe — re-rendering from the figure lays the text out at that size
+  instead of blurring it down, and needs no Pillow and no `sips`. Only an
+  already-rendered file, an R figure among them, has to be resampled.
+- **Batch the tweaks, read once.** Re-reading after every change is the multiplier
+  no per-image rule catches.
 - **One cell owns a name.** marimo allows a public name to be defined in exactly
   one cell. Use `_private` names for a cell's own intermediates.
 - **Submit bare cell statements.** `ctx.create_cell(...)` and `ctx.edit_cell(...)` take
@@ -239,7 +249,9 @@ artifact and cannot be verified.
 directory. Every writer takes `title=`, one name for one thing across the whole
 API and the field the manifest records. Each `preserve_*` also takes `inputs=` and
 a `filename=` — pass a distinct one for a second figure or table in the same cell,
-or the two overwrite each other.
+or the two overwrite each other. `preserve_figure` takes one more, `preview=`,
+on by default: it writes the 72dpi PNG under `data/cache/preview/` that you read
+instead of the deliverable. That file carries no manifest and is not an artifact.
 
 A `save_shared` name becomes a filename. A `preserve_*` name must be the name of
 the cell that writes it, so it must be a Python identifier: `check()` looks it up
@@ -320,9 +332,13 @@ Three data layers are under `data/`, each named for the function that writes it.
 | `data/shared/` | `save_shared()` | any notebook, via `load_shared()` |
 | `data/preserved/` | `preserve_figure()`, `preserve_table()`, `preserve_file()` | people |
 
-`data/cache/` sits beside them and is not a fourth layer: petri never writes it and
-nothing verifies it. It is scratch space, safe to delete. `mo.persistent_cache`
-writes to `notebooks/__marimo__/cache` unless you pass `save_path=str(CACHE_DIR)`.
+`data/cache/` sits beside them and is not a fourth layer: nothing verifies it and
+it is scratch space, safe to delete. Petri writes one thing there —
+`data/cache/preview/`, the low-resolution figure previews `preserve_figure()`
+leaves for you to read instead of the deliverable — and that write carries no
+manifest, which is exactly why it is here and not in a bundle.
+`mo.persistent_cache` writes to `notebooks/__marimo__/cache` unless you pass
+`save_path=str(CACHE_DIR)`.
 **A notebook may only read a cache file it produced itself.** With every cache
 empty, `make run NB=...` must still succeed from raw inputs. That is two
 directories, not one: `rm -rf data/cache/*` and `make clean`, which removes

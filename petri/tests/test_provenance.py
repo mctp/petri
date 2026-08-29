@@ -25,7 +25,7 @@ import pytest
 import petri
 from petri import provenance as A
 from petri.init import EXAMPLES_DIR
-from petri.paths import PROJECT_ROOT
+from petri.paths import CACHE_DIR, PRESERVED_DIR, PROJECT_ROOT
 
 # The template's own copy of the worked example. notebooks/ ships empty, so tests
 # that need a real notebook to parse read it from petri/examples/ instead.
@@ -313,6 +313,138 @@ def test_figure_metadata_is_stripped():
     """
     assert A._FIG_METADATA["pdf"] == {"CreationDate": None}
     assert A._FIG_METADATA["png"] == {"Software": None}
+
+
+# --- the preview render ------------------------------------------------------
+
+# A preview exists so an agent never reads a deliverable. Every assertion here is
+# about cost or about faithfulness: a preview that lies is worse than none, and a
+# preview as expensive as the figure is pointless.
+
+
+def _demo_figure(dpi: int = 300, inches: tuple[float, float] = (5, 4)):
+    """A figure at deliverable resolution, with text at a realistic size."""
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    fig, ax = plt.subplots(figsize=inches, dpi=dpi)
+    ax.plot([0, 1, 2], [0, 1, 0], label="x")
+    ax.set_xlabel("abundance")
+    ax.legend()
+    return fig
+
+
+def _png_size(payload: bytes) -> tuple[int, int]:
+    from PIL import Image
+
+    with Image.open(io.BytesIO(payload)) as im:
+        return im.size
+
+
+def test_preview_is_on_by_default():
+    """Off by default is a saving nobody takes. The file is scratch either way."""
+    assert inspect.signature(A.preserve_figure).parameters["preview"].default is True
+
+
+def test_preview_dpi_makes_one_point_one_pixel():
+    """The legibility floor is ~8px of text, so 8pt type sets the dpi.
+
+    72 is not a round number picked for tidiness: it is points per inch, which
+    makes any font size in points that many pixels tall.
+    """
+    assert A._PREVIEW_DPI == 72
+
+
+def test_preview_is_the_figure_size_in_points():
+    """A 5x4in figure previews at ~360x288 before the tight bbox trims it."""
+    fig = _demo_figure(dpi=300)
+    width, height = _png_size(A._preview_from_figure(fig))
+    assert 300 <= width <= 380, width
+    assert 240 <= height <= 300, height
+
+
+def test_preview_costs_a_fraction_of_the_deliverable():
+    """The whole point, in pixels — what an image costs is what it bills."""
+    fig = _demo_figure(dpi=300)
+    preview = _png_size(A._preview_from_figure(fig))
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", bbox_inches="tight")
+    deliverable = _png_size(buf.getvalue())
+    ratio = (deliverable[0] * deliverable[1]) / (preview[0] * preview[1])
+    assert ratio > 10, f"preview saves only {ratio:.1f}x"
+
+
+def test_preview_does_not_change_the_figure():
+    """savefig's dpi is per-call. If it leaked, the deliverable would follow it."""
+    fig = _demo_figure(dpi=300)
+    A._preview_from_figure(fig)
+    assert fig.dpi == 300
+
+
+def test_preview_preserves_the_deliverable_layout():
+    """A preview that reframed the plot would answer the wrong question.
+
+    Both renders come off one figure object, so the aspect ratio survives the dpi
+    change; only the tight bbox rounds, and only by a fraction of a percent.
+    """
+    fig = _demo_figure(dpi=300)
+    preview = _png_size(A._preview_from_figure(fig))
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", bbox_inches="tight")
+    deliverable = _png_size(buf.getvalue())
+    assert abs(preview[0] / preview[1] - deliverable[0] / deliverable[1]) < 0.02
+
+
+def test_a_raster_preview_scales_by_the_stored_dpi():
+    """ggsave records dpi in the PNG, which is the figure size this can recover."""
+    from PIL import Image
+
+    buf = io.BytesIO()
+    Image.new("RGB", (1500, 1200), "white").save(buf, format="png", dpi=(300, 300))
+    width, height = _png_size(A._preview_from_raster(buf.getvalue()))
+    assert (width, height) == (360, 288)
+
+
+def test_a_raster_preview_falls_back_to_a_long_edge_cap():
+    """A PNG with no pHYs chunk gives no figure size, only pixels."""
+    from PIL import Image
+
+    buf = io.BytesIO()
+    Image.new("RGB", (2000, 1000), "white").save(buf, format="png")
+    assert _png_size(A._preview_from_raster(buf.getvalue())) == (A._PREVIEW_MAX_PX, 250)
+
+
+def test_a_small_raster_is_its_own_preview():
+    """Upscaling would cost tokens to invent pixels. Return the bytes unchanged."""
+    from PIL import Image
+
+    buf = io.BytesIO()
+    Image.new("RGB", (200, 150), "white").save(buf, format="png")
+    payload = buf.getvalue()
+    assert A._preview_from_raster(payload) is payload
+
+
+def test_vector_output_has_no_preview_and_no_error():
+    """Pillow cannot open an SVG or a PDF. The deliverable is written anyway."""
+    assert ".svg" not in A._PREVIEW_RASTER_SUFFIXES
+    assert ".pdf" not in A._PREVIEW_RASTER_SUFFIXES
+    assert ".png" in A._PREVIEW_RASTER_SUFFIXES
+
+
+def test_the_preview_lives_in_the_cache_not_the_bundle():
+    """A 72dpi PNG in a bundle is a file check() reports as unrecorded."""
+    path = A._preview_path("full_example", "psma_scatter", "figure")
+    assert path == CACHE_DIR / "preview/full_example/psma_scatter-figure.png"
+    assert PRESERVED_DIR not in path.parents
+
+
+def test_two_figures_in_one_cell_get_two_previews():
+    """The same reason they get two renders: the filename separates them."""
+    first = A._preview_path("nb", "cell", "figure")
+    second = A._preview_path("nb", "cell", "inset")
+    assert first != second
 
 
 # --- guards ------------------------------------------------------------------

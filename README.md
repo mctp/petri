@@ -210,9 +210,10 @@ Committing one is deliberate (`git add -f`), worth doing when a collaborator has
 to verify a table they cannot download. To push the inputs themselves rather than
 sending them around, see [petri/docs/git-lfs.md](petri/docs/git-lfs.md).
 
-`data/cache/` is beside the three but is not a layer — petri never writes it and
-nothing verifies it. It is scratch space with a stable path, ignored by git, and
-safe to delete. `data/notebook_htmls/` is the same kind of directory: `make export`
+`data/cache/` is beside the three but is not a layer — nothing verifies it. It is
+scratch space with a stable path, ignored by git, and safe to delete. The one
+thing petri writes there is `data/cache/preview/`, the low-resolution figure
+previews an agent reads instead of a print-resolution deliverable. `data/notebook_htmls/` is the same kind of directory: `make export`
 writes rendered notebooks there, and every one of them can be rebuilt.
 
 See [petri/docs/architecture.md](petri/docs/architecture.md) for the design and

@@ -162,19 +162,30 @@ cell, or preserved — read it back from where it was written before you say any
 about it. Verify it is what you intended, then interpret it.
 
 Read it back as well as the situation allows. The three routes answer different
-questions:
+questions, and they are listed in the order they cost. Start at the top and stop
+as soon as your question is answered:
 
-- **the raster render**, with the `read` tool — what it looks like. Needs a
-  terminal that renders images. Do not assume a filename: `list_preserved()`
-  reports each bundle's actual files, and a bundle built with `formats=("svg",)`
-  has no PNG at all. For a figure you have not preserved, write one to `data/cache/`
-  and read that.
+- **the data** — whether the numbers are right. Print the frame, or read the
+  bundle's source-data file, which `preserve_figure()` always writes. Most of what
+  you want to know about a figure is a fact about the rows behind it, and this
+  route is the only one that answers in numbers.
 - **the SVG, as text** — what was actually drawn, with no image support needed.
   matplotlib writes the tick values as comments, so you can read the axis ranges
   after autoscale; it names the element groups (`axes_1`, `legend_1`), so you can
-  confirm a legend exists and count what was plotted.
-- **the data** — whether the numbers are right. Print the frame, or read the
-  bundle's source-data file, which `preserve_figure()` always writes.
+  confirm a legend exists and count what was plotted. Grep for those; never `cat`
+  the file. A 400-point scatter's SVG is 142 KB, because every point becomes a
+  `<use>` ref — read whole, it costs more than four hundred previews.
+- **the raster render**, with the `read` tool — what it looks like, which is the
+  one thing the first two cannot tell you: overlap, clipping, collided colours, a
+  label off the canvas. Needs a terminal that renders images. Read the 72dpi
+  preview `preserve_figure()` left in
+  `data/cache/preview/<notebook>/<cell>-<filename>.png`, never the deliverable in
+  the bundle: same layout, same overplotting density, a seventeenth of the pixels
+  and therefore of the tokens. For a figure you have not preserved,
+  `fig.savefig(CACHE_DIR / "<name>-preview.png", dpi=72, bbox_inches="tight")`
+  writes the same thing. Do not assume a filename in a bundle: `list_preserved()`
+  reports each bundle's actual files, and a bundle built with `formats=("svg",)`
+  has no PNG at all — and no preview either, since Pillow cannot resample one.
 
 Then do one of four things:
 
