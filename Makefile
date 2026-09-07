@@ -43,7 +43,9 @@ $(INIT_SETS):
 #
 # petri.server picks a port from this directory and execs marimo, so two projects
 # on one machine never share a port and never stop each other's server. Running
-# this when a server is already up here prints its URL and does nothing else.
+# this when a server is already up here prints its URL and does nothing else; a
+# server that is up but not answering is reported, never restarted, because the
+# restart would drop every kernel it holds. `make nb-stop` is the user's call.
 nb: ## Start marimo on notebooks/, or print the URL if it is already running
 	set -a; [ -f .env ] && . ./.env; set +a; PYTHONPATH="$(CURDIR)" uv run python -m petri.server $(ARGS)
 
@@ -65,9 +67,10 @@ nb-session: ## Print the session id a notebook opens under: make nb-session NB=n
 	@test -n "$(NB)" || (echo 'usage: make nb-session NB=notebooks/<name>.py'; exit 1)
 	@uv run python -m petri.server --session $(NB)
 
-# Parses the file with ast, so it needs no kernel and no running server. Reading
-# a notebook whole is the most expensive call in this project: the largest here is
-# 332 KB, and this is 9 KB of it.
+# Reads the file statically, through marimo's own loader and ast, so it needs no
+# kernel and no running server. Reading a notebook whole is the most expensive
+# call an agent makes here: a 330 KB notebook is ~85,000 tokens, and its outline
+# is under 10 KB.
 nb-outline: ## List a notebook's cells without reading the file: make nb-outline NB=notebooks/<name>.py
 	@test -n "$(NB)" || (echo 'usage: make nb-outline NB=notebooks/<name>.py'; exit 1)
 	@uv run python -m petri.outline $(NB)

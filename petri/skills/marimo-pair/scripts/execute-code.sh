@@ -101,9 +101,9 @@ else
     [[ -e "$f" ]] || continue
 
     if ! check_live "$f"; then
-      # On Windows the HTTP probe can fail transiently (slow start, busy server),
-      # so keep the entry; only POSIX `kill -0` is reliable enough to delete on.
-      [[ "$is_windows" == false ]] && rm -f "$f"
+      # Skip a dead entry, never delete it. The registry is shared by every
+      # marimo on the machine, marimo cleans up after itself, and petri.server
+      # leaves these files alone for the same reason.
       continue
     fi
 
@@ -227,8 +227,9 @@ while IFS= read -r line && [[ "$done_received" == false ]]; do
           echo "$payload" | jq -jr '.data' >&2
           ;;
         done)
+          # `done` carries only the success bit and, on success, the output.
+          # The error itself already arrived on the stderr events above.
           if echo "$payload" | jq -e '.success == false' >/dev/null 2>&1; then
-            echo "$payload" | jq -r '.error.msg' >&2
             exit_code=1
           else
             echo "$payload" | jq -r '.output.data // empty'

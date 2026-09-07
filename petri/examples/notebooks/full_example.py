@@ -408,14 +408,12 @@ def _(CACHE_DIR, mo, np, pl, pl_to_r, py_to_r, r_eval):
 @app.cell(hide_code=True)
 def _(CACHE_DIR, cmap_choice, mo, np, plt, sns):
     # Pattern 4: Supervised Clustered Heatmap (seaborn)
-    import pandas as pd
     from matplotlib.patches import Patch
 
     _rng = np.random.default_rng(77)
     _n_features, _n_samples = 25, 30
 
     _groups = ["Group_A"] * 10 + ["Group_B"] * 10 + ["Group_C"] * 10
-    _sample_ids = [f"Sample_{i:02d}" for i in range(_n_samples)]
 
     _matrix = _rng.normal(loc=5.0, scale=1.0, size=(_n_features, _n_samples))
     # Add group-specific signal pattern
@@ -428,19 +426,17 @@ def _(CACHE_DIR, cmap_choice, mo, np, plt, sns):
         _matrix.std(axis=1, keepdims=True) + 1e-9
     )
 
-    _meta_df = pd.DataFrame({"Group": _groups}, index=_sample_ids)
-    _meta_df["Group"] = _meta_df["Group"].astype("category")
-
     _palette = {
         "Group_A": "#4e79a7",
         "Group_B": "#f28e2b",
         "Group_C": "#e15759",
     }
-    _col_colors = _meta_df["Group"].map(_palette)
+    # clustermap takes any list-like of colours, so the label bar needs no pandas.
+    _col_colors = [_palette[_group] for _group in _groups]
 
     _g = sns.clustermap(
         _z_matrix,
-        col_colors=_col_colors.to_numpy(),
+        col_colors=_col_colors,
         cmap=cmap_choice.value,
         center=0,
         figsize=(7, 5.5),
@@ -554,6 +550,7 @@ def _(
 
 @app.cell(hide_code=True)
 def pattern6_batch_effect(
+    CACHE_DIR,
     load_shared,
     measurements,
     mo,
@@ -597,6 +594,14 @@ def pattern6_batch_effect(
     )
     plt.close(_fig)
 
+    # preserve_figure() also leaves a 72dpi render outside the bundle, under
+    # data/cache/preview/. That is the file an agent reads: the deliverable is
+    # sized for a printer and costs seventeen times the tokens for the same
+    # answers about layout, labels and overlap. It carries no manifest.
+    _preview = (
+        CACHE_DIR / "preview" / _bundle.parent.name / f"{_bundle.name}-figure.png"
+    )
+
     mo.vstack(
         [
             mo.md("### Pattern 6: Preserving a Deliverable (`preserve_figure`)"),
@@ -608,9 +613,12 @@ def pattern6_batch_effect(
             ),
             mo.md(
                 "**Read what you wrote.** An agent reads the written files, not "
-                "the in-memory figure: the `read` tool on\n\n"
-                f"`{(_bundle / 'figure.png').relative_to(_bundle.parents[2])}`\n\n"
-                "and `print()` on `figure-source.csv`. `preserve_figure()` requires "
+                "the in-memory figure, and reads the preview rather than the "
+                "deliverable: the `read` tool on\n\n"
+                f"`{_preview.relative_to(_preview.parents[3])}`\n\n"
+                "and `print()` on `figure-source.csv`. The preview is this figure "
+                "at 72dpi, a seventeenth of the pixels of `figure.png`, and is "
+                "scratch: no manifest, safe to delete. `preserve_figure()` requires "
                 "`source_data` so the plotted rows are always available as text, "
                 "which is the fallback when a terminal cannot render images."
             ),

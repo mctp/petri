@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # List running marimo instances from the server registry.
-# Cleans up stale entries (dead PIDs) and outputs live servers as JSON.
+# Skips stale entries (dead PIDs) and outputs live servers as JSON. The registry
+# is shared by every marimo on the machine, so nothing here deletes from it.
 # No marimo installation required.
 set -euo pipefail
 
@@ -41,9 +42,8 @@ for f in "$servers_dir"/*.json; do
   [[ -e "$f" ]] || continue
 
   if ! check_live "$f"; then
-    # On Windows the HTTP probe can fail transiently (slow start, busy server),
-    # so keep the entry; only POSIX `kill -0` is reliable enough to delete on.
-    [[ "$is_windows" == false ]] && rm -f "$f"
+    # Skip a dead entry, never delete it: marimo cleans up after itself, and
+    # petri.server leaves these files alone for the same reason.
     continue
   fi
 

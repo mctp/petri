@@ -91,21 +91,23 @@ run the worked example in a subprocess.
 When marimo is running:
 
 - **Do not edit** `notebooks/*.py` on disk. The kernel overwrites the file on save.
-- **Do not read one either.** These notebooks run to hundreds of kilobytes, and a
-  read is permanent: the largest here is 332 KB, or ~85,000 tokens, in one call.
-  `make nb-outline NB=notebooks/<name>.py` lists all 90 of its cells in 9 KB —
+- **Do not read one either.** A working notebook runs to hundreds of kilobytes,
+  and a read is permanent: a 330 KB notebook is ~85,000 tokens in one call.
+  `make nb-outline NB=notebooks/<name>.py` lists its cells in a few KB —
   position, name, length, which artifact each writes, and the line or markdown
   heading that says what it does. Read that, then pull the one cell you need from
-  the kernel with `ctx.cells["<name>"].code`. It parses the file with `ast`, so it
-  works with no server running and on a notebook someone else is editing.
+  the kernel with `ctx.cells["<name>"].code`. The outline reads the file without
+  executing it, so it works with no server running and on a notebook someone
+  else is editing.
 - **Run code** with `bash petri/skills/marimo-pair/scripts/execute-code.sh`.
 - **Prefix skill-relative paths.** A skill file that writes
   `bash scripts/foo.sh` means `bash petri/skills/<that-skill>/scripts/foo.sh`,
   run from the project root. `.pi/skills` and `.claude/skills` are symlinks to
   the same directory, so those paths work too; prefer the canonical one.
 - **Edit cells** with `marimo._code_mode` (`cm`) in the scratchpad.
-- **Hide code by default.** Pass `hide_code=True` to `ctx.create_cell(...)` so the
-  editor stays collapsed unless the user asks otherwise.
+- **Code stays hidden by default.** `ctx.create_cell(...)` collapses the code
+  editor; `hide_code=True` is its default. Pass `hide_code=False` only when the
+  user asks to see the code.
 - **Target by notebook**, with `--file notebooks/<name>.py`. One server hosts many
   sessions and `GET /api/sessions` is keyed by session id, but that id is not yours
   to remember: `make nb-open` gives each notebook a session id derived from its
@@ -125,9 +127,10 @@ When marimo is running:
   cell that calls `preserve_figure(fig, ...)`. Never point `mo.image(...)` or
   `preserve_file(...)` at a file some other process wrote: nothing in the notebook
   then produces the deliverable, which is the one thing a manifest is supposed to
-  record. Keep a cell's output under 5 MB — marimo rejects larger display
-  payloads, so plot natively rather than passing a multi-megapixel raster to
-  `ax.imshow()`.
+  record. Keep a cell's output under about 5 MB of raw bytes: `output_max_bytes`
+  in `pyproject.toml` is 8 MB, an image grows by a third when base64-encoded
+  into the payload, and marimo rejects what exceeds the cap. Plot natively
+  rather than passing a multi-megapixel raster to `ax.imshow()`.
 - **Read the preview, never the deliverable.** An image bills by the pixel, and a
   preserved figure is sized for a printer. `preserve_figure()` writes a 72dpi PNG
   to `data/cache/preview/<notebook>/<cell>-<filename>.png` for you to read: a
@@ -276,9 +279,10 @@ their parent rather than a layer. A relative path passed to `inputs=` is relativ
 to `PROJECT_ROOT`, never to the working directory. Failures raise `ArtifactError`;
 `check()` returns a `CheckReport` with `.ok`, `.errors` and `.warnings`. The two
 `list_*` calls return an `ArtifactListing`: a list of rows to index and iterate,
-which prints as a summary — counts by notebook, then every problem — because this
-project has 260 bundles and printing them whole costs ~23,000 tokens of transcript
-against 149. Filter and slice the rows; never print the list to see one row.
+which prints as a summary — counts by notebook, then every problem — because a
+project with a few hundred bundles prints to ~23,000 tokens of transcript against
+~150 for the summary. Filter and slice the rows; never print the list to see one
+row.
 
 `make check` calls that same function in a new interpreter and exits non-zero,
 which is the form for the shell and for CI.
@@ -323,7 +327,9 @@ legacy alias for `py_to_r` with the arguments reversed — prefer `py_to_r`. The
 docstrings in `r_bridge.py` are the contract; `petri/docs/rpy2.md` covers
 notebook use.
 
-- **Polars only.** Do not use `pandas`.
+- **Polars only.** Do not use `pandas` for data work. The one exception is
+  `.to_pandas()` at the hand-off to seaborn, which takes pandas frames: make that
+  call inside the plotting call and keep the frame in Polars everywhere else.
 - **Do not call `renv::load()` or `activate.R`** in a cell. `r_bridge` activates
   `renv` on import.
 - **Reference Polars DataFrames in cell signatures** to trigger marimo updates.
@@ -392,7 +398,7 @@ notebook that shares it, and `scripts/` is for the work that is too heavy or too
 reused to sit in one. The `petri-analysis` skill has where to cut a long cell.
 
 `petri/` holds the template's own machinery — the API source, plus `tests/`,
-`docs/`, `skills/`, `init.py`, `server.py` and `examples/`. **New machinery goes there, not at
+`docs/`, `skills/`, `init.py`, `server.py`, `outline.py` and `examples/`. **New machinery goes there, not at
 the root.** The skills are canonical at `petri/skills/`; `.pi/skills` and
 `.claude/skills` are symlinks to it, so edit the real directory and never copy a
 skill between the two.
@@ -445,10 +451,10 @@ itself. The ones you need without looking:
 |---|---|
 | `make nb-open NB=<path>` | Open one notebook in the browser on its own stable session, starting the server first if needed. `make nb-session NB=<path>` prints that session id |
 | `make nb-outline NB=<path>` | List a notebook's cells — position, name, length, artifacts written, one summary line each — instead of reading the file. No kernel needed |
-| `make nb ARGS=--daemon` | Start the marimo server for this project in the background, or report the one already running. `nb-url`, `nb-status`, `nb-stop` alongside it. Bare `make nb` runs it in the foreground, which blocks a tool call |
+| `make nb ARGS=--daemon` | Start the marimo server for this project in the background, or report the one already running. A server that is up but not answering is reported and left alone, never restarted. `nb-url`, `nb-status`, `nb-stop` alongside it. Bare `make nb` runs it in the foreground, which blocks a tool call |
 | `make run NB=<path>` | **Ask first.** Run a notebook headlessly as a script, with `PYTHONPATH` and `.env` loaded |
 | `make export NB=<path>` | **Ask first.** Export a notebook to self-contained HTML in `data/notebook_htmls/`, without console noise. Runs every cell. `OUT=<path>.html` writes elsewhere |
-| `make init [minimal\|full]` | Copy examples from `petri/examples/` into the user's empty folders. Never overwrites without `--force` |
+| `make init [minimal\|full]` | Copy examples from `petri/examples/` into the user's empty folders. Never overwrites without `ARGS=--force` |
 | `make check` | **Ask first.** Verify artifact provenance; non-zero on drift. Reports zero artifacts on a project with no data, which is not a failure |
 | `make test` | Contracts plus the write path. The write-path tests skip unless `make init full` has run |
 | `make lint` / `make fmt` | Check or fix formatting (supports `make lint NB=notebooks/<name>.py`). In `notebooks/` only code that cannot run is reported, not style |

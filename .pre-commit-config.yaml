@@ -15,6 +15,11 @@ default_stages: [pre-commit]
 #
 # The `data/` prefix stays optional rather than being dropped, so the rule also
 # covers an artifact somebody force-adds from their own working tree.
+#
+# notebooks/ is not in this list, because the key-pattern hook below should still
+# read a force-added notebook. The hooks that *write* exclude it one by one: the
+# marimo kernel is the only writer of those files, `ruff format` and `make fmt`
+# already skip them, and a rewrite changes the cell text that check() hashes.
 exclude: |
   (?x)^(
     \.renv/activate\.R|
@@ -32,8 +37,11 @@ repos:
       - id: check-toml
       - id: check-yaml
       - id: end-of-file-fixer
+        exclude: ^notebooks/
       - id: trailing-whitespace
+        exclude: ^notebooks/
       - id: mixed-line-ending
+        exclude: ^notebooks/
       - id: detect-private-key
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
@@ -41,6 +49,9 @@ repos:
     hooks:
       - id: ruff-check
         args: [--fix]
+        # Same exclusion `make fmt` passes: `ruff check --fix` does not read
+        # [tool.ruff.format].exclude, and a fix rewrites a cell the kernel owns.
+        exclude: ^notebooks/
       - id: ruff-format
 
   - repo: https://github.com/astral-sh/uv-pre-commit

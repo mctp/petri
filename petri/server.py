@@ -382,29 +382,36 @@ def stop_here(root: Path = PROJECT_ROOT) -> Server | None:
     return server
 
 
+def report_unhealthy(server: Server) -> None:
+    """Say that this project's server is up but not answering, and stop there.
+
+    One message for every entry point. An unhealthy server is reported, never
+    replaced: stopping it would drop every kernel it holds, including notebooks
+    somebody is working in, and a server that fails /health may still be
+    answering the browser. Whether to lose that state is the user's call, so the
+    message names the command and leaves it to them.
+    """
+    print(
+        f"marimo for this project (pid {server.pid}, port {server.port}) is not "
+        "responding on /health."
+    )
+    print(
+        "  Not restarting it: that would stop every kernel on this server. "
+        "Run `make nb-stop` to stop it yourself, then run this again."
+    )
+
+
 def ensure_server() -> Server | None:
     """The server for this project, started in the background if there is none.
 
     Returns None when it could not be started; the caller has already been told
-    why.
-
-    An unhealthy server is reported, not replaced. Stopping it would drop every
-    kernel it holds, including notebooks somebody is working in, and a server
-    that fails /health may still be answering the browser. Whether to lose that
-    state is the user's call, so this returns None and names the command.
+    why. See report_unhealthy() for why a hung server is left alone.
     """
     here = server_here()
     if here is not None and here.healthy:
         return here
     if here is not None:
-        print(
-            f"marimo for this project (pid {here.pid}, port {here.port}) is not "
-            "responding on /health."
-        )
-        print(
-            "  Not restarting it: that would stop every kernel on this server. "
-            "Run `make nb-stop` to stop it yourself, then run this again."
-        )
+        report_unhealthy(here)
         return None
     port = free_port()
     if port != preferred_port():
@@ -502,12 +509,12 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  pid {here.pid}. Open it, or `make nb-stop` to stop it.")
         return 0
 
+    # A hung server is the same case whether the caller is `make nb`, `--daemon`
+    # or `--open`: report it and stop. An agent runs `--daemon` on its own, and
+    # this branch used to stop every kernel on the server without asking.
     if here is not None:
-        print(
-            f"marimo for this project (pid {here.pid}, port {here.port}) is not "
-            "responding on /health. Stopping it and starting a new one."
-        )
-        stop_here()
+        report_unhealthy(here)
+        return 1
 
     port = free_port()
     if port != preferred_port():

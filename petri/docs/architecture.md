@@ -24,7 +24,7 @@ Embedding R inside Python using `rpy2` within a reactive, multi-threaded noteboo
    - When R initializes, it uses `getwd()` (`PROJECT_ROOT`), automatically finding `.Rprofile` and running `.renv/activate.R` once.
 
 2. **CFFI ABI Mode**:
-   - `petri/r_bridge.py` sets `os.environ["RPY2_CFFI_MODE"] = "ABI"` before importing `rpy2` to silence stderr CFFI warnings when the installed `rpy2` wheel was compiled against a different R build.
+   - `petri/r_bridge.py` defaults `RPY2_CFFI_MODE` to `ABI` with `os.environ.setdefault(...)` before importing `rpy2`, so a wheel compiled against a different R build loads without the API-mode import error on stderr. A value exported in `.env` wins, which is how to opt into API mode.
 
 3. **Thread-Safe Conversion Rules (`ContextVar`)**:
    - `rpy2` stores type conversion rules in a Python `contextvars.ContextVar`.

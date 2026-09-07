@@ -36,7 +36,9 @@ make r-snapshot                      # record the current library into the lockf
 make r-status                        # check library vs. lockfile
 ```
 
-Currently locked: `ggplot2`, `ggpubr`, `limma`, `BiocManager`, and their dependencies (81 packages).
+Locked today: `ggplot2`, `ggpubr`, `limma`, `BiocManager`, `dplyr`, `ggrepel`,
+`svglite` and their dependencies. `renv.lock` is the list; `make r-status`
+compares it with the library.
 
 Inside an R session started at the project root, `.Rprofile` activates renv
 automatically, so `renv::install()` / `renv::snapshot()` work directly.
@@ -64,7 +66,8 @@ This must be set **before** `source(".renv/activate.R")`, because activate.R
 checks project sync during startup and errors out if the filter is missing.
 
 Both `renv::snapshot()` and `renv::status()` use the filter, so status reports
-a clean project instead of flagging all 77 packages as "recorded but not used".
+a clean project instead of flagging every locked package as "recorded but not
+used".
 
 Note that `renv::snapshot(type = "all")` is *not* equivalent: it walks every
 library path, sweeping the base and recommended packages out of renv's sandbox
@@ -96,12 +99,17 @@ export R_LIBS_USER="$(Rscript -e 'cat(renv::paths$library())')"
 make nb
 ```
 
-### Do not `source(".renv/activate.R")` from a notebook
+### Do not activate renv from a notebook
 
-It resolves paths relative to the *current working directory*. Called with the
-kernel's cwd at `notebooks/`, it silently bootstraps a second renv project in
-`notebooks/renv/` and then hangs trying to download renv in a non-interactive
-embedded R session. Use `renv::load("<project root>")` instead.
+Neither `source(".renv/activate.R")` nor `renv::load()` belongs in a cell.
+Importing `r_bridge` has already done the activation, once, when R started.
+
+`activate.R` is the dangerous one: it resolves paths relative to the *current
+working directory*, so called with the kernel's cwd at `notebooks/` it silently
+bootstraps a second renv project in `notebooks/renv/` and then hangs trying to
+download renv in a non-interactive embedded R session. `renv::load()` is merely
+redundant. If `r_eval(".libPaths()")` does not show `.renv/library`, the kernel's
+R started without `r_bridge`; import it and restart the kernel.
 
 ## Installing R packages
 
@@ -126,9 +134,10 @@ make r-restore
 ## Troubleshooting
 
 - **`renv` not found**: `Rscript -e 'install.packages("renv", repos="https://cloud.r-project.org")'`
-- **Package installed but not visible in a notebook**: the kernel loaded R
-  before `renv::load()`, or the cell never ran. Re-run the activation cell and
-  check `ro.r(".libPaths()")`.
+- **Package installed but not visible in a notebook**: R loads once per kernel
+  process and does not see a package installed after it started. Restart the
+  kernel after `make r-install`, and check that `r_eval(".libPaths()")` shows
+  `.renv/library`.
 - **Compilation failures on macOS**: see [rpy2.md](rpy2.md) — the same
   gcc/gfortran toolchain issues affect R source packages.
 - **Lockfile churn**: `make r-snapshot` records the library exactly; if a

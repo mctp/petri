@@ -11,9 +11,10 @@ says what it does. That is two orders of magnitude smaller than the file, and it
 is enough to choose which cell to look at. Pull that one body from the live
 kernel with `ctx.cells["<name>"].code`.
 
-This parses the file with `ast`, the same way check() reads cell names, so it
-needs no kernel and no running server, and it is safe on a notebook someone is
-editing.
+The cells come from marimo's own loader, the same call check() uses to read cell
+names, and each cell body is then parsed with `ast` to describe it. Both read the
+file without executing it, so this needs no kernel and no running server, and it
+is safe on a notebook someone is editing.
 
     make nb-outline NB=notebooks/<name>.py
 """

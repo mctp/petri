@@ -2,8 +2,12 @@
 
 `rpy2` embeds a real R interpreter in the Python process. It is listed as a
 normal dependency, so `uv sync` installs it — but whether it works *well*
-depends on your machine's R installation. This project deliberately ships **no
-rpy2 workarounds**: no pinned build mode, no environment overrides. Configure R
+depends on your machine's R installation. The template ships one default and no
+other override: `petri/r_bridge.py` sets `RPY2_CFFI_MODE=ABI` unless the
+variable is already set, so a wheel built against a different R loads quietly
+instead of printing the API-mode import error into every notebook. Export
+`RPY2_CFFI_MODE=API` in `.env` to opt into the compiled interface once your
+wheel matches your R. Everything else — where R lives, which R — is configured
 once on your machine, the way you want it.
 
 ## 1. Install R first
@@ -70,6 +74,10 @@ Three ways to deal with it, in increasing order of effort:
 export RPY2_CFFI_MODE=ABI      # e.g. in your shell profile, or .env
 ```
 
+Inside a notebook this is already the default: `r_bridge` sets it before
+importing rpy2. The export matters for anything that imports rpy2 without
+`r_bridge` — `python -m rpy2.situation`, a plain script, a test.
+
 **b. Install framework R** so the wheel's expected path exists (macOS, CRAN
 build).
 
@@ -133,11 +141,18 @@ launched it.
 
 ### R packages are missing inside notebooks
 
-rpy2 uses your user/site R libraries. Install R packages with R itself:
+rpy2 uses the project library that `.Rprofile` activates, `.renv/library/`, not
+your user or site library. Install into it with the target that also snapshots
+`renv.lock`:
 
 ```bash
-Rscript -e 'install.packages("ggplot2", repos="https://cloud.r-project.org")'
+make r-install PKG="ggplot2"          # CRAN
+make r-install PKG="bioc::DESeq2"     # Bioconductor
 ```
+
+Then restart the kernel: R loads once per kernel process and does not see a
+package installed after it started. `r_eval(".libPaths()")` shows which library
+is active. [renv.md](renv.md) has the rest.
 
 ## 5. Using rpy2 in a marimo notebook via `petri/r_bridge.py`
 

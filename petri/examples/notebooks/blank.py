@@ -44,8 +44,8 @@ def _(PROJECT_ROOT, mo):
 
                 ## Where output goes
 
-This is an **analysis notebook**: it reads `data/shared/` and writes
-`data/preserved/`.
+                This is an **analysis notebook**: it reads `data/shared/` and writes
+                `data/preserved/`.
 
                 | Want | Use |
                 |---|---|

@@ -28,7 +28,11 @@ def _notebook(tmp_path: Path, body: str) -> Path:
 
 
 def test_the_outline_is_orders_of_magnitude_smaller_than_the_file():
-    """The whole point. 90 cells of a 332 KB notebook fit in single-digit KB."""
+    """The whole point: a notebook of hundreds of KB outlines to single-digit KB.
+
+    The shipped example is small, so the ratio here is loose; the number to keep
+    in mind is the working notebook this exists for.
+    """
     text = O.outline(EXAMPLE_NOTEBOOK)
     assert len(text) < len(EXAMPLE_NOTEBOOK.read_text()) / 5
 

@@ -1,5 +1,5 @@
 {
-  "cell_code_sha256": "1542eed224d98a1bef9d80390729377b85b7038c7c934092fedf72521196f7b4",
+  "cell_code_sha256": "ec9fe0aef427f7e3cf16e9ff2c7da24dfdae9da7fdfe37047bfd915cca57e130",
   "code_deps": [],
   "created": "2026-08-05T01:05:54+00:00",
   "id": "pattern6_batch_effect",
@@ -22,13 +22,13 @@
     },
     {
       "filename": "figure.pdf",
-      "sha256": "3519318c3805dfadc8bba9b73ce8544add89e80822d11e6dcc4e2492cc9b60a1",
-      "size": 13176
+      "sha256": "c8825fcdd5f43ffff73c8ec567d1aeeca16a1b35b8179f61e5741f9667f2790d",
+      "size": 14059
     },
     {
       "filename": "figure.png",
-      "sha256": "40e803e652de758983d520531757dfd4ca6477f37749584363c5f9652af060c3",
-      "size": 14803
+      "sha256": "29beaaa07a4ecac5016f2336b033abf2d85cd7d8d19a125c20e0bc5881cfcf56",
+      "size": 17194
     }
   ],
   "title": "Intensity by group and batch"

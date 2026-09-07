@@ -104,9 +104,9 @@ _PREVIEW_DPI = 72
 # one that did not: a 7-inch figure at _PREVIEW_DPI.
 _PREVIEW_MAX_PX = 500
 # How many rows a listing shows before it groups them instead. A listing printed
-# whole is the most expensive call in this API — 258 preserved bundles is ~23,000
-# tokens — and a scratchpad print stays in the agent's transcript for the rest of
-# the session, where a cell's output does not.
+# whole is the most expensive call in this API — a few hundred preserved bundles
+# is ~23,000 tokens — and a scratchpad print stays in the agent's transcript for
+# the rest of the session, where a cell's output does not.
 _LISTING_ROWS = 20
 
 # What Pillow can resample. An SVG or a PDF from ggsave has no preview, which is
@@ -158,10 +158,10 @@ class ArtifactListing(list):
 
     The rows are for code: index them, iterate them, filter them. But the obvious
     thing to do with a listing is print it, and printed whole this is the most
-    expensive call in the API — 258 bundles is ~23,000 tokens of transcript that
-    never leaves the session. So only the display is compact. check() sets the
-    precedent: 265 artifacts in five lines, because it prints what is wrong and
-    counts the rest.
+    expensive call in the API — a few hundred bundles is ~23,000 tokens of
+    transcript that never leaves the session. So only the display is compact.
+    check() sets the precedent: hundreds of artifacts in five lines, because it
+    prints what is wrong and counts the rest.
 
     Small listings print a line each. Past _LISTING_ROWS they are grouped by
     notebook and counted. Either way every problem is shown, because a problem is
@@ -428,12 +428,13 @@ def _describe_input(path: Path) -> dict[str, Any]:
     data/shared/    The hash comes from that table's manifest, which pins the
                     input to the published version rather than to the bytes on
                     disk.
-    data/external/  Not owned by petri, so a change is a warning rather than an
-                    error.
-               Hashed like anything else: a (size, mtime) fingerprint reported
-               drift after a re-download of identical content and after every
-               fresh clone, and load_external() reads all the bytes anyway.
-    other      Hashed directly.
+    data/external/  Hashed. Not owned by petri, so a change is a warning rather
+                    than an error.
+    other           Hashed.
+
+    Content, not a (size, mtime) fingerprint, for the two hashed kinds: the
+    fingerprint reported drift after a re-download of identical content and
+    after every fresh clone, and load_external() reads all the bytes anyway.
 
     A relative path is relative to the project root, not to the working
     directory. Every other path in petri is root-relative — manifests store
@@ -854,12 +855,15 @@ def save_shared(
     payload = _csv_bytes(data)
     _, code = _cell_identity()
     resolved_inputs = _resolve_inputs(inputs)
-
     target = shared_path(name)
+    manifest_path = SHARED_DIR / f"{name}.manifest.json"
+    # The last thing that can raise: a manifest from a newer petri. Read it
+    # before the CSV lands, not after.
+    existing = _load_manifest(manifest_path)
+
     digest = _write_if_changed(target, payload)
 
-    manifest_path = SHARED_DIR / f"{name}.manifest.json"
-    manifest = _manifest_skeleton("shared", name, title, _load_manifest(manifest_path))
+    manifest = _manifest_skeleton("shared", name, title, existing)
     manifest["cell_code_sha256"] = _code_hash(code)
     manifest["code_deps"] = _code_deps(code)
     manifest["inputs"] = resolved_inputs
@@ -1195,6 +1199,10 @@ def list_shared() -> ArtifactListing:
                 }
             )
             continue
+        # save_shared() records exactly one output, the table, so the first
+        # entry is the table here — unlike a bundle, where _output_entry() has
+        # to find a file by name. Read the recorded filename rather than
+        # rebuilding it, so a future suffix is not assumed to be .csv.
         outputs = manifest.get("outputs") or []
         entries.append(
             {
@@ -1498,6 +1506,7 @@ def check() -> CheckReport:
 
 __all__ = [
     "ArtifactError",
+    "ArtifactListing",
     "CheckReport",
     "check",
     "external_path",

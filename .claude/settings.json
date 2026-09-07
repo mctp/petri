@@ -12,6 +12,22 @@
       "Bash(jq *)",
       "Bash(make *)",
       "Bash(uv run *)"
+    ],
+    "ask": [
+      "Bash(make nb-stop)",
+      "Bash(make run *)",
+      "Bash(make export *)",
+      "Bash(make check)",
+      "Bash(make test)",
+      "Bash(make fmt)",
+      "Bash(make init ARGS=--force)",
+      "Bash(make init minimal ARGS=--force)",
+      "Bash(make init full ARGS=--force)",
+      "Bash(uv run python -m petri.server --stop)",
+      "Bash(uv run python notebooks/*)",
+      "Bash(uv run marimo export *)",
+      "Bash(uv run pytest)",
+      "Bash(uv run pytest *)"
     ]
   }
 }

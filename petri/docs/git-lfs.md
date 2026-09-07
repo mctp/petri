@@ -40,7 +40,7 @@ remote, and taking them out of a remote's history is a rewrite, not a delete.
 
 ## Which directory
 
-| Directory | Size here | Regenerable | Track with LFS |
+| Directory | Size in one working project | Regenerable | Track with LFS |
 |---|---|---|---|
 | `data/external/` | 228 MB, 18 files | no — the inputs collaborators sent | yes |
 | `data/preserved/` | 130 MB, 882 files | yes, but these are the results | yes |
@@ -93,9 +93,9 @@ is a new LFS object. `preserve_figure`'s docstring already says to prefer PNG or
 SVG from R. Under LFS the advice has a bill attached.
 
 GitHub gives an account 1 GB of LFS storage and 1 GB of bandwidth per month before
-charging. This project's two candidates are 228 MB and 130 MB, so a first push of
-both is about a third of the storage, and each fresh clone spends the same again
-out of the month's bandwidth.
+charging. In the project tabulated above the two candidates were 228 MB and 130 MB,
+so a first push of both is about a third of the storage, and each fresh clone
+spends the same again out of the month's bandwidth.
 
 ## Setup
 
@@ -228,5 +228,5 @@ git add -f data/preserved/<notebook>/<cell>/
 Attributes apply on `git add` whether or not the path is ignored, so the file
 still goes to LFS. This keeps the default in place — nothing under `data/` is
 tracked unless someone names it — and it is the smaller change when one
-collaborator needs one input, or when one figure is the deliverable and the other
-880 files are not.
+collaborator needs one input, or when one figure is the deliverable and the
+several hundred other files are not.

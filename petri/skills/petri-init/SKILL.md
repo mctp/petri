@@ -43,8 +43,9 @@ it prints `exists` and moves on — so a re-run is safe, but a project that alre
 has notebooks probably does not want examples dropped beside them. Look first,
 and if there is existing work, say what you would add and let the user decide.
 
-**Do not pass `--force` on your own initiative.** It overwrites the user's files
-with template copies. Only use it when the user asks to reset an example they
+**Do not pass `--force` on your own initiative.** The flag goes through make as
+`make init full ARGS=--force`, and it overwrites the user's files with template
+copies. Only use it when the user asks to reset an example they
 have edited, and name the files it will replace before you run it.
 
 `--dry-run` and `--list` answer "what would this do" without writing anything.

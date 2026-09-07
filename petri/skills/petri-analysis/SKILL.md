@@ -129,8 +129,9 @@ costs twice the cell: ~1,500 tokens at 60 lines, ~5,000 at 200, every time.
 body runs limma again every time you move a label.
 
 Sixty lines is about a screen and about 1,500 tokens a round trip. Past ~120 the
-cost is a reason to split even when the code is cohesive. For scale: the cells in
-this project run to a median of 73 lines, a p90 of 167 and a maximum of 435.
+cost is a reason to split even when the code is cohesive. For scale: in a mature
+project the cells settle around a median of 70 lines, with a tail past 400 in the
+ones nobody wanted to split.
 
 **Cut where a value already has a name.** A long cell reaches its result through
 two or three intermediates. Each is a cell, and the whole edit is promoting a
@@ -184,9 +185,9 @@ silently and reach the figure.
 Embed the plotting code in the cell and preserve the figure that cell draws.
 Pointing `mo.image(...)` or `preserve_file(...)` at a PNG some other process
 wrote leaves a deliverable no cell produces, which is the one thing the manifest
-is meant to rule out. Keep what a cell displays under 5 MB — marimo rejects
-larger payloads, so plot natively rather than `imshow`-ing a multi-megapixel
-raster.
+is meant to rule out. Keep what a cell displays under about 5 MB of raw bytes:
+the configured `output_max_bytes` is 8 MB and base64 adds a third, so plot
+natively rather than `imshow`-ing a multi-megapixel raster.
 
 ## Scratchpad
 

@@ -89,7 +89,7 @@ Your folders ship empty, `make init` to jump-start from `petri/examples/`:
 `full_example.py` runs the whole pipeline in one notebook: it reads `data/external/`,
 calls `scripts/`, publishes to `data/shared/`, then consumes that table and writes
 deliverables to `data/preserved/`. Nothing is overwritten on a re-run unless you
-pass `--force`. `make help` lists all targets.
+pass `ARGS=--force`. `make help` lists all targets.
 
 ## Conventions
 
@@ -116,7 +116,8 @@ petri/skills/             the skills themselves: marimo-pair, petri-analysis, pe
 .pi/skills       -> ../petri/skills
 .claude/skills   -> ../petri/skills
 CLAUDE.md        -> AGENTS.md
-.claude/settings.json     permission allowlist for the marimo scripts and make
+.claude/settings.json     permission rules: the marimo scripts and make run without a
+                          prompt; nb-stop, run, export, check and test still ask
 ```
 
 Only one agent attaches to the kernel: the one you are talking to. Subagents it
@@ -167,6 +168,7 @@ petri/         paths, provenance, R interop — the API your notebooks import
   skills/      marimo-pair, petri-analysis, petri-init — symlinked into .pi/ and .claude/
   init.py      the `make init` sets
   server.py    the per-directory marimo port, behind `make nb`
+  outline.py   a notebook's cells without reading the file, behind `make nb-outline`
 .python-version (uv)
 .Rprofile (R sources it from the startup directory)
 .pre-commit-config.yaml

@@ -100,9 +100,12 @@ produced into a `cell 'x' changed since this was written` error.
 - ruff is excluded from `notebooks/` for writes: `[tool.ruff.format] exclude` and
   the `--extend-exclude` on `make fmt`'s `ruff check --fix`. That exclusion is
   there for this reason and because the kernel owns those files.
+- the pre-commit hooks that write — `ruff-check --fix`, `end-of-file-fixer`,
+  `trailing-whitespace`, `mixed-line-ending` — carry `exclude: ^notebooks/`, so a
+  force-added notebook is not rewritten on commit.
 
-So the drift source is currently disabled rather than absent. Two config lines
-disable it, and this section is what to do if either changes — or if a
+So the drift source is currently disabled rather than absent. Three settings
+disable it, and this section is what to do if any of them changes — or if a
 future marimo starts normalising cell text on save.
 
 ## Option C: hash a canonical AST

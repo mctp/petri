@@ -403,3 +403,24 @@ def test_ensure_server_reports_an_unhealthy_server_instead_of_replacing_it(
     out = capsys.readouterr().out
     assert "not responding" in out
     assert "make nb-stop" in out
+
+
+@pytest.mark.parametrize("argv", [["--daemon"], []])
+def test_main_reports_a_hung_server_instead_of_restarting_it(monkeypatch, capsys, argv):
+    """`make nb ARGS=--daemon` is what an agent runs, and it used to take this
+    branch straight into stop_here(). The rule is the same as ensure_server():
+    a hung server is reported, and `make nb-stop` is the user's to run."""
+    hung = S.Server(pid=222, port=2754, cwd=PROJECT_ROOT, healthy=False)
+    monkeypatch.setattr(S, "server_here", lambda root=PROJECT_ROOT: hung)
+
+    def fail(*args, **kwargs):  # pragma: no cover - must not be reached
+        raise AssertionError("main() stopped or started a server")
+
+    monkeypatch.setattr(S, "stop_here", fail)
+    monkeypatch.setattr(S, "start_daemon", fail)
+    monkeypatch.setattr(S.os, "execvp", fail)
+
+    assert S.main(argv) == 1
+    out = capsys.readouterr().out
+    assert "not responding" in out
+    assert "make nb-stop" in out
